@@ -1,0 +1,172 @@
+:root {
+  /* Primary Brand Colors - Flames by the Indus */
+  --primary: #F26513;
+  /* Brand Orange */
+  --primary-hover: #D95511;
+  /* Darker Orange */
+  --primary-foreground: #ffffff;
+
+  /* Secondary / Accent */
+  --accent: #f59e0b;
+  /* Amber 500 - for warnings/attention */
+  --accent-foreground: #ffffff;
+
+  /* Backgrounds - Dark Theme by Default for Premium Feel */
+  --background: #0f172a;
+  /* Slate 900 */
+  --card: #1e293b;
+  /* Slate 800 */
+  --card-foreground: #f8fafc;
+  /* Slate 50 */
+
+  /* Text */
+  --foreground: #f1f5f9;
+  /* Slate 100 */
+  --muted: #64748b;
+  /* Slate 500 */
+  --muted-foreground: #94a3b8;
+  /* Slate 400 */
+
+  /* Borders */
+  --border: #334155;
+  /* Slate 700 */
+  --input: #334155;
+
+  /* Status */
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --success: #22c55e;
+
+  /* Spacing & Radius */
+  --radius: 0.5rem;
+  --header-height: 4rem;
+  --sidebar-width: 280px;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  color: var(--card-foreground);
+  letter-spacing: -0.025em;
+}
+
+/* Utilities */
+.container {
+  width: 100%;
+  padding-right: 1rem;
+  padding-left: 1rem;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.flex {
+  display: flex;
+}
+
+.grid {
+  display: grid;
+}
+
+.hidden {
+  display: none;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.p-4 {
+  padding: 1rem;
+}
+
+.py-2 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.text-primary {
+  color: var(--primary);
+}
+
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}

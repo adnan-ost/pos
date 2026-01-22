@@ -1,0 +1,172 @@
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal {
+    background: white;
+    /* Receipts are usually white */
+    color: black;
+    width: 380px;
+    /* Thermal printer width approx */
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.receiptContainer {
+    padding: 1.5rem;
+    overflow-y: auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.logo h1 {
+    font-size: 1.5rem;
+    color: black;
+    margin-bottom: 0.5rem;
+}
+
+.header p {
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+
+.fbrHeader {
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: bold;
+    border: 1px dashed black;
+    padding: 0.25rem;
+}
+
+.fbrLogo {
+    height: 20px;
+}
+
+.meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+    border-bottom: 1px dashed black;
+    padding-bottom: 0.5rem;
+}
+
+.items table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.items th {
+    text-align: left;
+    border-bottom: 1px solid black;
+    padding-bottom: 0.25rem;
+}
+
+.items td {
+    padding: 0.25rem 0;
+}
+
+.right {
+    text-align: right;
+}
+
+.totals {
+    margin-top: 1rem;
+    border-top: 1px dashed black;
+    padding-top: 0.5rem;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.grandTotal {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid black;
+    padding-top: 0.5rem;
+}
+
+.qrSection {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+.qrPlaceholder {
+    width: 100px;
+    height: 100px;
+    background: #eee;
+    margin: 0 auto 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid black;
+    font-size: 0.7rem;
+}
+
+.qrCode {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 0.5rem;
+    border: 1px solid black;
+}
+
+.qrSection p {
+    font-size: 0.7rem;
+}
+
+.footer {
+    text-align: center;
+    margin-top: 1rem;
+    font-size: 0.8rem;
+}
+
+.actions {
+    padding: 1rem;
+    background: #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid #e2e8f0;
+}
+
+.cancelBtn,
+.printBtn {
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    border: none;
+    font-weight: 600;
+}
+
+.cancelBtn {
+    background: #cbd5e1;
+    color: #1e293b;
+}
+
+.printBtn {
+    background: var(--primary);
+    color: white;
+}
