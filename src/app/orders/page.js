@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import styles from './orders.module.css';
-import { getOrders, updateOrderStatus } from '@/lib/ordersData';
+import { getOrders, updateOrderStatus } from '@/lib/supabaseDb';
+import { supabase } from '@/lib/supabase';
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState([]);
@@ -9,28 +10,47 @@ export default function OrdersPage() {
 
     useEffect(() => {
         // Load orders on mount
-        setOrders(getOrders());
+        loadOrders();
 
-        // Optional: Poll for updates or listen to storage events
-        const handleStorageChange = () => {
-            setOrders(getOrders());
+        // Real-time subscription for new orders
+        const subscription = supabase
+            .channel('orders_channel')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+                loadOrders();
+            })
+            .subscribe();
+
+        return () => {
+            subscription.unsubscribe();
         };
-        window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
     }, []);
+
+    const loadOrders = async () => {
+        try {
+            const data = await getOrders();
+            setOrders(data);
+        } catch (error) {
+            console.error("Failed to load orders", error);
+        }
+    };
 
     const filteredOrders = orders.filter(order => {
         if (activeTab === 'all') return true;
         return order.status === activeTab;
     });
 
-    const handleStatusUpdate = (orderId, currentStatus) => {
+    const handleStatusUpdate = async (orderId, currentStatus) => {
         const flow = ['new', 'preparing', 'ready', 'completed'];
         const currentIndex = flow.indexOf(currentStatus);
         if (currentIndex < flow.length - 1) {
             const nextStatus = flow[currentIndex + 1];
-            const updated = updateOrderStatus(orderId, nextStatus);
-            setOrders(updated);
+            try {
+                await updateOrderStatus(orderId, nextStatus);
+                // State will auto-update via subscription, but for instant feedback:
+                loadOrders();
+            } catch (error) {
+                console.error("Failed to update status", error);
+            }
         }
     };
 
@@ -68,7 +88,7 @@ export default function OrdersPage() {
                             <div>
                                 <div className={styles.orderId}>Order #{order.id}</div>
                                 <div className={styles.orderTime}>
-                                    {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                             </div>
                             <span className={`${styles.statusBadge} ${styles[`status_${order.status}`]}`}>
@@ -94,7 +114,7 @@ export default function OrdersPage() {
 
                         <div className={styles.cardFooter}>
                             <div className={styles.totalAmount}>
-                                Rs. {order.totals.total.toLocaleString()}
+                                Rs. {order.total.toLocaleString()}
                             </div>
                             {order.status !== 'completed' && (
                                 <button

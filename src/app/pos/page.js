@@ -1,8 +1,7 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import styles from './pos.module.css';
-import { menuData } from '@/lib/menuData';
-import { addOrder } from '@/lib/ordersData';
+import { getMenuItems, getCategories, addOrder } from '@/lib/supabaseDb';
 
 import ModifierModal from '@/components/POS/ModifierModal';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
@@ -23,6 +22,7 @@ const CategoryIcon = ({ name, size = 18 }) => {
 };
 
 export default function POSPage() {
+    const [menuData, setMenuData] = useState({ categories: [], items: [], modifiers: {} });
     const [activeCategory, setActiveCategory] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [cart, setCart] = useState([]);
@@ -32,13 +32,50 @@ export default function POSPage() {
     const [showReceipt, setShowReceipt] = useState(false);
     const [paymentMode, setPaymentMode] = useState('cash'); // 'cash' or 'card'
 
+    // Load menu data from Supabase
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const [categories, items] = await Promise.all([
+                    getCategories(),
+                    getMenuItems()
+                ]);
+                // TODO: fetch modifiers from DB
+                const modifiers = {
+                    spiciness: {
+                        type: 'select',
+                        name: 'Spice Level',
+                        options: [
+                            { name: 'Mild', price: 0 },
+                            { name: 'Medium', price: 0 },
+                            { name: 'Spicy', price: 0 },
+                            { name: 'Extra Spicy', price: 0 }
+                        ]
+                    },
+                    raita: {
+                        type: 'multiselect',
+                        name: 'Add-ons',
+                        options: [
+                            { name: 'Raita', price: 50 },
+                            { name: 'Salad', price: 50 }
+                        ]
+                    }
+                };
+                setMenuData({ categories, items, modifiers });
+            } catch (error) {
+                console.error("Failed to load POS data", error);
+            }
+        };
+        loadData();
+    }, []);
+
     // Filter items based on category and search
     const filteredItems = useMemo(() => {
         let items = menuData.items;
 
         // Filter by Category (unless 'all')
         if (activeCategory !== 'all') {
-            items = items.filter(item => item.categoryId === activeCategory);
+            items = items.filter(item => item.category_id === activeCategory);
         }
 
         // Filter by Search
@@ -49,7 +86,7 @@ export default function POSPage() {
         }
 
         return items;
-    }, [activeCategory, searchQuery]);
+    }, [activeCategory, searchQuery, menuData.items]);
 
     // Handle Item Click
     const handleItemClick = (item) => {
@@ -113,20 +150,29 @@ export default function POSPage() {
         setShowReceipt(true);
     };
 
-    const handlePrint = () => {
+    const handlePrint = async () => {
         // In real app: window.print() or thermal printer API
         const order = {
             items: cart,
-            totals: totals,
-            paymentMode: paymentMode,
-            includeTax: includeTax,
-            customerType: 'Walk-in'
+            subtotal: totals.subtotal,
+            tax: totals.tax,
+            total: totals.total,
+            // paymentMode,
+            // includeTax,
+            // customerType: 'Walk-in',
+            order_type: 'dine-in',
+            status: 'completed'
         };
-        addOrder(order);
 
-        alert('Printing Receipt... Order Completed!');
-        setCart([]);
-        setShowReceipt(false);
+        try {
+            await addOrder(order);
+            alert('Printing Receipt... Order Completed!');
+            setCart([]);
+            setShowReceipt(false);
+        } catch (error) {
+            console.error("Failed to save order", error);
+            alert("Failed to save order");
+        }
     };
 
     return (

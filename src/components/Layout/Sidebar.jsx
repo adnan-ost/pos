@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Utensils, ClipboardList, ChefHat, BarChart3, Settings } from 'lucide-react';
+import { Utensils, ClipboardList, ChefHat, BarChart3, Settings, ExternalLink } from 'lucide-react';
 import styles from './Sidebar.module.css';
 
 const Sidebar = () => {
@@ -27,7 +27,11 @@ const Sidebar = () => {
                 </Link>
                 <Link href="/menu" className={styles.link}>
                     <ChefHat className={styles.icon} size={20} />
-                    Menu
+                    Menu Management
+                </Link>
+                <Link href="/customer" className={styles.link} target="_blank">
+                    <ExternalLink className={styles.icon} size={20} />
+                    Customer View
                 </Link>
                 <Link href="/reports" className={styles.link}>
                     <BarChart3 className={styles.icon} size={20} />

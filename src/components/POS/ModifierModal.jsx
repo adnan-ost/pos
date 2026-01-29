@@ -113,8 +113,8 @@ const ModifierModal = ({ item, modifiersData, onClose, onConfirm }) => {
                                         <button
                                             key={idx}
                                             className={`${styles.chip} ${mod.type === 'select'
-                                                    ? (selections[modId]?.name === opt.name ? styles.active : '')
-                                                    : (selections[modId]?.find(o => o.name === opt.name) ? styles.active : '')
+                                                ? (selections[modId]?.name === opt.name ? styles.active : '')
+                                                : (selections[modId]?.find(o => o.name === opt.name) ? styles.active : '')
                                                 }`}
                                             onClick={() => handleModifierChange(modId, opt, mod.type)}
                                         >
