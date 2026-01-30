@@ -5,8 +5,9 @@ import Sidebar from './Sidebar';
 export default function AppLayout({ children }) {
     const pathname = usePathname();
     const isCustomerView = pathname?.startsWith('/customer');
+    const isLoginView = pathname?.startsWith('/login');
 
-    if (isCustomerView) {
+    if (isCustomerView || isLoginView) {
         return (
             <main style={{ minHeight: '100vh', backgroundColor: 'var(--background)' }}>
                 {children}

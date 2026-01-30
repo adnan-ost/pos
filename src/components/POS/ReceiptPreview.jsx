@@ -1,8 +1,25 @@
+import { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+import { generateEMVCoPayload } from '@/lib/emvco';
+import { getSettings } from '@/app/settings/actions';
 import styles from './ReceiptPreview.module.css';
 
-const ReceiptPreview = ({ cart, totals, includeTax, onClose, onPrint }) => {
-    const invoiceNo = `FBR-${Math.floor(100000 + Math.random() * 900000)}`;
+const ReceiptPreview = ({ cart, totals, includeTax, invoiceNumber, onClose, onPrint }) => {
+    const [settings, setSettings] = useState(null);
+    const invoiceNo = invoiceNumber || `FBR-${Math.floor(100000 + Math.random() * 900000)}`;
     const date = new Date().toLocaleString();
+
+    useEffect(() => {
+        getSettings().then(setSettings);
+    }, []);
+
+    const qrPayload = settings?.raast_id ? generateEMVCoPayload({
+        raastId: settings.raast_id,
+        amount: totals.total,
+        merchantName: settings.merchant_name,
+        merchantCity: settings.merchant_city,
+        invoiceNo: invoiceNo
+    }) : null;
 
     return (
         <div className={styles.overlay}>
@@ -13,7 +30,7 @@ const ReceiptPreview = ({ cart, totals, includeTax, onClose, onPrint }) => {
                         <div className={styles.logo}>
                             <img src="/flames-by-the-indus-logo-for-receipt.svg" alt="Flames by the Indus" style={{ height: '60px', marginBottom: '0.5rem' }} />
                         </div>
-                        <p>Flames by the Indus - Gulberg Greens Islamabad</p>
+                        <p>{settings?.merchant_name || 'Flames by the Indus'} - {settings?.merchant_city || 'Islamabad'}</p>
                         <p>NTN: 1234567-8 | STRN: 1234567890123</p>
                         {includeTax && (
                             <div className={styles.fbrHeader}>
@@ -59,7 +76,7 @@ const ReceiptPreview = ({ cart, totals, includeTax, onClose, onPrint }) => {
                         </div>
                         {includeTax && (
                             <div className={styles.row}>
-                                <span>GST (16%):</span>
+                                <span className="font-bold">GST (16%):</span>
                                 <span>Rs. {totals.tax.toLocaleString()}</span>
                             </div>
                         )}
@@ -68,6 +85,24 @@ const ReceiptPreview = ({ cart, totals, includeTax, onClose, onPrint }) => {
                             <span>Rs. {totals.total.toLocaleString()}</span>
                         </div>
                     </div>
+
+                    {/* Payment QR Code */}
+                    {qrPayload && (
+                        <div className={styles.qrSection}>
+                            <div className="flex flex-col items-center justify-center p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg my-4">
+                                <QRCodeSVG
+                                    value={qrPayload}
+                                    size={150}
+                                    level="M"
+                                    includeMargin={true}
+                                />
+                                <div className="mt-2 text-center">
+                                    <p className="font-bold text-sm text-gray-800">Scan to Pay with Raast / JazzCash</p>
+                                    <p className="text-xs text-gray-500">Amount: Rs. {totals.total.toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* FBR QR Code - only show when tax is included */}
                     {includeTax && (

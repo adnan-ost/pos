@@ -43,7 +43,7 @@ export async function updateSession(request) {
         !request.nextUrl.pathname.startsWith('/login')
     ) {
         // Only redirect if accessing protected routes
-        const protectedPaths = ['/pos', '/orders', '/menu'];
+        const protectedPaths = ['/pos', '/orders', '/menu', '/profile'];
         const isProtected = protectedPaths.some(path =>
             request.nextUrl.pathname.startsWith(path)
         );

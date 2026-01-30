@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   /* Primary Brand Colors - Flames by the Indus */
   --primary: #F26513;

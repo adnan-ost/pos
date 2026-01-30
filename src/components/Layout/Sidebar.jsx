@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Utensils, ClipboardList, ChefHat, BarChart3, Settings, ExternalLink } from 'lucide-react';
+import { Utensils, ClipboardList, ChefHat, BarChart3, Settings, ExternalLink, User, LogOut } from 'lucide-react';
 import styles from './Sidebar.module.css';
+import { logout } from '@/app/logout/actions';
 
 const Sidebar = () => {
     return (
@@ -17,7 +18,7 @@ const Sidebar = () => {
             </div>
 
             <nav className={styles.nav}>
-                <Link href="/pos" className={`${styles.link} ${styles.active}`}>
+                <Link href="/pos" className={`${styles.link}`}>
                     <Utensils className={styles.icon} size={20} />
                     POS
                 </Link>
@@ -40,10 +41,17 @@ const Sidebar = () => {
 
                 <div className={styles.spacer}></div>
 
-                <Link href="/settings" className={styles.link}>
-                    <Settings className={styles.icon} size={20} />
-                    Settings
+                <Link href="/profile" className={styles.link}>
+                    <User className={styles.icon} size={20} />
+                    Profile
                 </Link>
+
+                <form action={logout}>
+                    <button type="submit" className={`${styles.link} w-full text-left`}>
+                        <LogOut className={styles.icon} size={20} />
+                        Logout
+                    </button>
+                </form>
             </nav>
 
             <div className={styles.footer}>
