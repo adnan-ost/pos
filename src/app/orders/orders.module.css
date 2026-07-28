@@ -126,8 +126,48 @@
 
 .itemRow {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
     font-size: 0.9rem;
+}
+
+.itemThumb {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+}
+
+.itemThumbFallback {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted-foreground);
+    background: var(--muted, rgba(255, 255, 255, 0.04));
+}
+
+.itemInfo {
+    min-width: 0;
+    flex: 1;
+}
+
+.itemName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.itemModifiers {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    margin-top: 0.15rem;
 }
 
 .itemQty {

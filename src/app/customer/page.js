@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import styles from './customer.module.css';
-import { getMenuData } from '@/lib/menuStorage';
+import { getFullMenuData } from '@/lib/supabaseDb';
 import { Soup, Flame, Utensils, Cookie, GlassWater, Plus, Search } from 'lucide-react';
 import Image from 'next/image';
 
@@ -27,10 +27,15 @@ export default function CustomerMenuPage() {
 
     // Load menu data
     useEffect(() => {
-        const loadData = () => {
-            const data = getMenuData();
-            setMenuData(data);
-            setIsLoading(false);
+        const loadData = async () => {
+            try {
+                const data = await getFullMenuData();
+                setMenuData(data);
+            } catch (error) {
+                console.error('Error loading customer menu:', error);
+            } finally {
+                setIsLoading(false);
+            }
         };
         loadData();
     }, []);
@@ -39,7 +44,7 @@ export default function CustomerMenuPage() {
     const filteredItems = useMemo(() => {
         let items = activeCategory === 'all'
             ? menuData.items
-            : menuData.items.filter(item => item.categoryId === activeCategory);
+            : menuData.items.filter(item => item.category_id === activeCategory);
 
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();

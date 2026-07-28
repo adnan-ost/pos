@@ -154,3 +154,41 @@ export const updateOrderStatus = async (id, status) => {
     if (error) throw error;
     return data;
 };
+// ==================== MODIFIERS ====================
+export const getModifiers = async () => {
+    const { data, error } = await supabase
+        .from('modifiers')
+        .select('*');
+
+    if (error) {
+        console.error('Error fetching modifiers:', error);
+        return [];
+    }
+
+    // Convert to the record format used in the app if necessary
+    // or return as is. The app seems to expect an object keyed by modifier key.
+    const modifiersRecord = {};
+    data.forEach(mod => {
+        modifiersRecord[mod.key] = {
+            type: mod.type,
+            name: mod.name,
+            options: mod.options
+        };
+    });
+    return modifiersRecord;
+};
+
+// ==================== AGGREGATED DATA ====================
+export const getFullMenuData = async () => {
+    const [categories, items, modifiers] = await Promise.all([
+        getCategories(),
+        getMenuItems(),
+        getModifiers()
+    ]);
+
+    return {
+        categories,
+        items,
+        modifiers
+    };
+};

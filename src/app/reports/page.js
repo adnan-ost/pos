@@ -13,16 +13,34 @@ const COLORS = ['#F26513', '#F97316', '#FB923C', '#FDBA74', '#FFEDD5'];
 
 export default function ReportsPage() {
     const [range, setRange] = useState('7days')
+    const [fromDate, setFromDate] = useState('')
+    const [toDate, setToDate] = useState('')
     const [stats, setStats] = useState(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         setLoading(true)
-        getDashboardStats(range).then(data => {
-            setStats(data)
-            setLoading(false)
-        })
-    }, [range])
+        // If custom date range is set, use it
+        if (fromDate) {
+            getDashboardStats(fromDate, toDate || fromDate).then(data => {
+                setStats(data)
+                setLoading(false)
+            })
+        } else {
+            getDashboardStats(range).then(data => {
+                setStats(data)
+                setLoading(false)
+            })
+        }
+    }, [range, fromDate, toDate])
+
+    const handlePresetClick = (preset) => {
+        setRange(preset)
+        setFromDate('')
+        setToDate('')
+    }
+
+    const isCustomRange = fromDate !== ''
 
     if (loading) {
         return (
@@ -40,31 +58,68 @@ export default function ReportsPage() {
         <div className="p-8 max-w-7xl mx-auto space-y-8 bg-gray-950 min-h-screen text-gray-100">
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Analytics Dashboard</h1>
-                    <p className="text-gray-400">Overview of your store's performance</p>
+                    <p className="text-gray-400 mt-1">Overview of your store's performance</p>
                 </div>
 
-                <div className="flex bg-gray-900 rounded-lg shadow-sm border border-gray-800 p-1">
-                    <button
-                        onClick={() => setRange('today')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${range === 'today' ? 'bg-orange-500/10 text-orange-500' : 'text-gray-400 hover:bg-gray-800'}`}
-                    >
-                        Today
-                    </button>
-                    <button
-                        onClick={() => setRange('7days')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${range === '7days' ? 'bg-orange-500/10 text-orange-500' : 'text-gray-400 hover:bg-gray-800'}`}
-                    >
-                        Last 7 Days
-                    </button>
-                    <button
-                        onClick={() => setRange('30days')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${range === '30days' ? 'bg-orange-500/10 text-orange-500' : 'text-gray-400 hover:bg-gray-800'}`}
-                    >
-                        Last 30 Days
-                    </button>
+                {/* Filter Controls */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    {/* Preset Buttons */}
+                    <div className="flex bg-gray-900/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-800/50 p-1.5">
+                        {[
+                            { key: 'today', label: 'Today' },
+                            { key: '7days', label: '7 Days' },
+                            { key: '30days', label: '30 Days' }
+                        ].map((preset) => (
+                            <button
+                                key={preset.key}
+                                onClick={() => handlePresetClick(preset.key)}
+                                className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${!isCustomRange && range === preset.key
+                                        ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25'
+                                        : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                                    }`}
+                            >
+                                {preset.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Custom Date Range */}
+                    <div className={`flex items-center gap-3 bg-gray-900/80 backdrop-blur-sm rounded-xl shadow-lg border p-3 transition-all duration-200 ${isCustomRange ? 'border-orange-500/50 ring-1 ring-orange-500/20' : 'border-gray-800/50'
+                        }`}>
+                        <Calendar className={`h-4 w-4 flex-shrink-0 ${isCustomRange ? 'text-orange-500' : 'text-gray-500'}`} />
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="date"
+                                value={fromDate}
+                                onChange={(e) => setFromDate(e.target.value)}
+                                max={toDate || new Date().toISOString().split('T')[0]}
+                                className="w-[130px] px-2 py-1.5 rounded-lg text-sm font-medium bg-gray-800/50 border border-gray-700/50 text-gray-300 transition-all focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 [color-scheme:dark]"
+                            />
+                            <span className="text-gray-600 text-xs font-medium">→</span>
+                            <input
+                                type="date"
+                                value={toDate}
+                                onChange={(e) => setToDate(e.target.value)}
+                                min={fromDate}
+                                max={new Date().toISOString().split('T')[0]}
+                                className="w-[130px] px-2 py-1.5 rounded-lg text-sm font-medium bg-gray-800/50 border border-gray-700/50 text-gray-300 transition-all focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 [color-scheme:dark]"
+                            />
+                        </div>
+                        {isCustomRange && (
+                            <button
+                                onClick={() => handlePresetClick('7days')}
+                                className="ml-1 p-1 rounded-md hover:bg-gray-700/50 text-gray-500 hover:text-gray-300 transition-colors"
+                                title="Clear custom range"
+                            >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 

@@ -61,35 +61,13 @@ export default function MenuManagementPage() {
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [categories, items] = await Promise.all([
+            const [categories, items, modifiersRecord] = await Promise.all([
                 getCategories(),
-                getMenuItems()
+                getMenuItems(),
+                getModifiers()
             ]);
 
-            // Hardcoded modifiers for now as they are not full CRUD yet in the UI
-            // In a real app, fetch these from DB too
-            const modifiers = {
-                spiciness: {
-                    type: 'select',
-                    name: 'Spice Level',
-                    options: [
-                        { name: 'Mild', price: 0 },
-                        { name: 'Medium', price: 0 },
-                        { name: 'Spicy', price: 0 },
-                        { name: 'Extra Spicy', price: 0 }
-                    ]
-                },
-                raita: {
-                    type: 'multiselect',
-                    name: 'Add-ons',
-                    options: [
-                        { name: 'Raita', price: 50 },
-                        { name: 'Salad', price: 50 }
-                    ]
-                }
-            };
-
-            setMenuData({ categories, items, modifiers });
+            setMenuData({ categories, items, modifiers: modifiersRecord });
         } catch (error) {
             console.error("Failed to load menu data", error);
         } finally {

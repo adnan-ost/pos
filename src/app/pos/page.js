@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import styles from './pos.module.css';
-import { getMenuItems, getCategories, addOrder } from '@/lib/supabaseDb';
+import { getMenuItems, getCategories, addOrder, getModifiers } from '@/lib/supabaseDb';
 
 import ModifierModal from '@/components/POS/ModifierModal';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
@@ -27,6 +27,9 @@ export default function POSPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [cart, setCart] = useState([]);
     const [modifyingItem, setModifyingItem] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
+    const [loadedItemCount, setLoadedItemCount] = useState(null);
 
     // Checkout State
     const [showReceipt, setShowReceipt] = useState(false);
@@ -35,35 +38,24 @@ export default function POSPage() {
     // Load menu data from Supabase
     useEffect(() => {
         const loadData = async () => {
+            setIsLoading(true);
+            setLoadError(null);
             try {
-                const [categories, items] = await Promise.all([
+                const [categories, items, modifiers] = await Promise.all([
                     getCategories(),
-                    getMenuItems()
+                    getMenuItems(),
+                    getModifiers()
                 ]);
-                // TODO: fetch modifiers from DB
-                const modifiers = {
-                    spiciness: {
-                        type: 'select',
-                        name: 'Spice Level',
-                        options: [
-                            { name: 'Mild', price: 0 },
-                            { name: 'Medium', price: 0 },
-                            { name: 'Spicy', price: 0 },
-                            { name: 'Extra Spicy', price: 0 }
-                        ]
-                    },
-                    raita: {
-                        type: 'multiselect',
-                        name: 'Add-ons',
-                        options: [
-                            { name: 'Raita', price: 50 },
-                            { name: 'Salad', price: 50 }
-                        ]
-                    }
-                };
+
+                console.debug('POS loadData:', { categoriesCount: categories.length, itemsCount: items.length, modifiersCount: Object.keys(modifiers).length });
                 setMenuData({ categories, items, modifiers });
+                setLoadedItemCount(items.length);
             } catch (error) {
                 console.error("Failed to load POS data", error);
+                setLoadError(error?.message || 'Failed to load menu data');
+                setLoadedItemCount(0);
+            } finally {
+                setIsLoading(false);
             }
         };
         loadData();
@@ -71,22 +63,20 @@ export default function POSPage() {
 
     // Filter items based on category and search
     const filteredItems = useMemo(() => {
-        let items = menuData.items;
+        let items = activeCategory === 'all'
+            ? menuData.items
+            : menuData.items.filter(item => item.category_id === activeCategory);
 
-        // Filter by Category (unless 'all')
-        if (activeCategory !== 'all') {
-            items = items.filter(item => item.category_id === activeCategory);
-        }
-
-        // Filter by Search
-        if (searchQuery) {
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
             items = items.filter(item =>
-                item.name.toLowerCase().includes(searchQuery.toLowerCase())
+                item.name.toLowerCase().includes(query) ||
+                item.description?.toLowerCase().includes(query)
             );
         }
 
         return items;
-    }, [activeCategory, searchQuery, menuData.items]);
+    }, [menuData.items, activeCategory, searchQuery]);
 
     // Handle Item Click
     const handleItemClick = (item) => {
@@ -255,8 +245,26 @@ export default function POSPage() {
                             <button className={styles.addBtn}><Plus size={16} /></button>
                         </div>
                     ))}
-                    {filteredItems.length === 0 && (
-                        <div className={styles.emptyState}>No items found</div>
+                    {isLoading ? (
+                        <div className={styles.emptyState}>
+                            <h3>Loading menu...</h3>
+                        </div>
+                    ) : filteredItems.length === 0 && (
+                        <div className={styles.emptyState}>
+                            {loadError ? (
+                                <>
+                                    <h3>Unable to load menu items</h3>
+                                    <p>{loadError}</p>
+                                </>
+                            ) : loadedItemCount === 0 ? (
+                                <>
+                                    <h3>No menu items returned</h3>
+                                    <p>Check Supabase row access, policies, or the correct project environment.</p>
+                                </>
+                            ) : (
+                                <h3>No items found</h3>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

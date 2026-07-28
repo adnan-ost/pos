@@ -4,7 +4,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { startOfDay, endOfDay, subDays, format, parseISO } from 'date-fns'
 
-export async function getDashboardStats(range = 'today') {
+export async function getDashboardStats(range = 'today', endDateStr = null) {
     const supabase = await createClient()
 
     // Determine date range
@@ -12,7 +12,18 @@ export async function getDashboardStats(range = 'today') {
     let startDate = startOfDay(now)
     let endDate = endOfDay(now)
 
-    if (range === '7days') {
+    // Check if range is a specific date (YYYY-MM-DD) or date range
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (dateRegex.test(range)) {
+        const specificDate = parseISO(range);
+        startDate = startOfDay(specificDate);
+        // If endDateStr is provided, use it; otherwise use the same day
+        if (endDateStr && dateRegex.test(endDateStr)) {
+            endDate = endOfDay(parseISO(endDateStr));
+        } else {
+            endDate = endOfDay(specificDate);
+        }
+    } else if (range === '7days') {
         startDate = subDays(now, 7)
     } else if (range === '30days') {
         startDate = subDays(now, 30)
