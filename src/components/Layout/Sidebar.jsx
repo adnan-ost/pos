@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Utensils, ClipboardList, ChefHat, BarChart3, Settings, ExternalLink, User, LogOut } from 'lucide-react';
+import { Utensils, ClipboardList, ChefHat, BarChart3, Settings, ExternalLink, User, LogOut, MonitorPlay } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import { logout } from '@/app/logout/actions';
 
@@ -25,6 +25,10 @@ const Sidebar = () => {
                 <Link href="/orders" className={styles.link}>
                     <ClipboardList className={styles.icon} size={20} />
                     Orders
+                </Link>
+                <Link href="/kds" className={styles.link} target="_blank">
+                    <MonitorPlay className={styles.icon} size={20} />
+                    Kitchen Display
                 </Link>
                 <Link href="/menu" className={styles.link}>
                     <ChefHat className={styles.icon} size={20} />

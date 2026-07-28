@@ -151,12 +151,12 @@ export default function POSPage() {
             // includeTax,
             // customerType: 'Walk-in',
             order_type: 'dine-in',
-            status: 'completed'
+            status: 'new' // fires the ticket to the kitchen display
         };
 
         try {
             await addOrder(order);
-            alert('Printing Receipt... Order Completed!');
+            alert('Printing Receipt... Order sent to kitchen!');
             setCart([]);
             setShowReceipt(false);
         } catch (error) {
