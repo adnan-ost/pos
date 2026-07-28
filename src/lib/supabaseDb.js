@@ -110,6 +110,22 @@ export const deleteMenuItem = async (id) => {
     return true;
 };
 
+// ==================== WAITERS ====================
+
+export const getWaiters = async () => {
+    const { data, error } = await supabase
+        .from('waiters')
+        .select('*')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching waiters:', error);
+        return [];
+    }
+    return data;
+};
+
 // ==================== ORDERS ====================
 
 export const getOrders = async () => {

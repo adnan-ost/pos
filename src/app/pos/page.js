@@ -1,12 +1,23 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import styles from './pos.module.css';
-import { getMenuItems, getCategories, addOrder, getModifiers } from '@/lib/supabaseDb';
+import { getMenuItems, getCategories, addOrder, getModifiers, getWaiters } from '@/lib/supabaseDb';
 
 import ModifierModal from '@/components/POS/ModifierModal';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
+import LiveClock from '@/components/Layout/LiveClock';
 
-import { Soup, Flame, Utensils, Cookie, GlassWater, Plus, CirclePlus } from 'lucide-react';
+import {
+    Soup, Flame, Utensils, Cookie, GlassWater, Plus, CirclePlus,
+    Search, Banknote, CreditCard, X, Minus, UserRound, Armchair,
+    UtensilsCrossed, ShoppingBag, Bike, Loader2
+} from 'lucide-react';
+
+const ORDER_TYPES = [
+    { key: 'dine-in', label: 'Dine-in', Icon: UtensilsCrossed },
+    { key: 'takeaway', label: 'Takeaway', Icon: ShoppingBag },
+    { key: 'delivery', label: 'Delivery', Icon: Bike }
+];
 
 const CategoryIcon = ({ name, size = 18 }) => {
     const icons = {
@@ -35,6 +46,12 @@ export default function POSPage() {
     const [showReceipt, setShowReceipt] = useState(false);
     const [paymentMode, setPaymentMode] = useState('cash'); // 'cash' or 'card'
 
+    // Order details
+    const [waiters, setWaiters] = useState([]);
+    const [waiterId, setWaiterId] = useState('');
+    const [tableNumber, setTableNumber] = useState('');
+    const [orderType, setOrderType] = useState('dine-in');
+
     // Load menu data from Supabase
     useEffect(() => {
         const loadData = async () => {
@@ -59,6 +76,7 @@ export default function POSPage() {
             }
         };
         loadData();
+        getWaiters().then(setWaiters);
     }, []);
 
     // Filter items based on category and search
@@ -140,6 +158,8 @@ export default function POSPage() {
         setShowReceipt(true);
     };
 
+    const selectedWaiter = waiters.find(w => w.id === waiterId);
+
     const handlePrint = async () => {
         // In real app: window.print() or thermal printer API
         const order = {
@@ -150,7 +170,12 @@ export default function POSPage() {
             // paymentMode,
             // includeTax,
             // customerType: 'Walk-in',
-            order_type: 'dine-in',
+            order_type: orderType,
+            // Only dine-in occupies a table
+            table_number: orderType === 'dine-in' ? tableNumber.trim() || null : null,
+            waiter_id: waiterId || null,
+            // Denormalised so the ticket still names the server if staff change
+            waiter_name: selectedWaiter?.name || null,
             status: 'new' // fires the ticket to the kitchen display
         };
 
@@ -158,6 +183,7 @@ export default function POSPage() {
             await addOrder(order);
             alert('Printing Receipt... Order sent to kitchen!');
             setCart([]);
+            setTableNumber('');
             setShowReceipt(false);
         } catch (error) {
             console.error("Failed to save order", error);
@@ -191,7 +217,7 @@ export default function POSPage() {
             <div className={styles.mainContent}>
                 <header className={styles.header}>
                     <div className={styles.searchBar}>
-                        <span className={styles.searchIcon}>🔍</span>
+                        <Search className={styles.searchIcon} size={18} aria-hidden="true" />
                         <input
                             type="text"
                             placeholder="Search menu..."
@@ -201,7 +227,7 @@ export default function POSPage() {
                         />
                     </div>
                     <div className={styles.customerInfo}>
-                        <span>Walk-in Customer</span>
+                        <LiveClock className={styles.headerClock} />
                     </div>
                 </header>
 
@@ -247,6 +273,7 @@ export default function POSPage() {
                     ))}
                     {isLoading ? (
                         <div className={styles.emptyState}>
+                            <Loader2 className={styles.loadingSpinner} size={28} />
                             <h3>Loading menu...</h3>
                         </div>
                     ) : filteredItems.length === 0 && (
@@ -276,6 +303,60 @@ export default function POSPage() {
                     <span className={styles.orderId}>#1024</span>
                 </div>
 
+                {/* Order details: who is serving, and where */}
+                <div className={styles.orderDetails}>
+                    <div className={styles.orderTypeRow}>
+                        {ORDER_TYPES.map(({ key, label, Icon }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                className={`${styles.typeBtn} ${orderType === key ? styles.activeType : ''}`}
+                                onClick={() => setOrderType(key)}
+                            >
+                                <Icon size={16} aria-hidden="true" />
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className={styles.detailFields}>
+                        <label className={styles.field}>
+                            <span className={styles.fieldLabel}>
+                                <UserRound size={14} aria-hidden="true" />
+                                Waiter
+                            </span>
+                            <select
+                                className={styles.fieldInput}
+                                value={waiterId}
+                                onChange={(e) => setWaiterId(e.target.value)}
+                            >
+                                <option value="">Unassigned</option>
+                                {waiters.map(w => (
+                                    <option key={w.id} value={w.id}>
+                                        {w.code ? `${w.code} · ${w.name}` : w.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+
+                        {orderType === 'dine-in' && (
+                            <label className={styles.field}>
+                                <span className={styles.fieldLabel}>
+                                    <Armchair size={14} aria-hidden="true" />
+                                    Table
+                                </span>
+                                <input
+                                    type="text"
+                                    className={styles.fieldInput}
+                                    placeholder="e.g. T4"
+                                    value={tableNumber}
+                                    onChange={(e) => setTableNumber(e.target.value)}
+                                />
+                            </label>
+                        )}
+                    </div>
+                </div>
+
                 <div className={styles.cartItems}>
                     {cart.length === 0 ? (
                         <div className={styles.emptyCart}>No items added</div>
@@ -292,16 +373,26 @@ export default function POSPage() {
                                         </div>
                                     )}
                                     <div className={styles.qtyControls}>
-                                        <button onClick={() => updateQty(idx, -1)}>-</button>
+                                        <button onClick={() => updateQty(idx, -1)} aria-label="Decrease quantity">
+                                            <Minus size={14} />
+                                        </button>
                                         <span>{item.qty}</span>
-                                        <button onClick={() => updateQty(idx, 1)}>+</button>
+                                        <button onClick={() => updateQty(idx, 1)} aria-label="Increase quantity">
+                                            <Plus size={14} />
+                                        </button>
                                     </div>
                                 </div>
                                 <div className={styles.cartItemRight}>
                                     <div className={styles.cartItemTotal}>
                                         Rs. {item.price * item.qty}
                                     </div>
-                                    <button className={styles.removeBtn} onClick={() => removeItem(idx)}>×</button>
+                                    <button
+                                        className={styles.removeBtn}
+                                        onClick={() => removeItem(idx)}
+                                        aria-label={`Remove ${item.name}`}
+                                    >
+                                        <X size={16} />
+                                    </button>
                                 </div>
                             </div>
                         ))
@@ -315,13 +406,15 @@ export default function POSPage() {
                             className={`${styles.modeBtn} ${paymentMode === 'cash' ? styles.activeMode : ''}`}
                             onClick={() => setPaymentMode('cash')}
                         >
-                            💵 Cash
+                            <Banknote size={18} aria-hidden="true" />
+                            Cash
                         </button>
                         <button
                             className={`${styles.modeBtn} ${paymentMode === 'card' ? styles.activeMode : ''}`}
                             onClick={() => setPaymentMode('card')}
                         >
-                            💳 Card
+                            <CreditCard size={18} aria-hidden="true" />
+                            Card
                         </button>
                     </div>
 

@@ -86,11 +86,24 @@
 }
 
 .clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted-foreground);
+}
+
+.clock strong {
     font-size: 1.5rem;
     font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    min-width: 5.5rem;
+    color: var(--foreground);
+    min-width: 6.5rem;
     text-align: right;
+}
+
+.clock span {
+    font-size: 0.9rem;
+    font-weight: 600;
 }
 
 .iconBtn {
@@ -223,6 +236,16 @@
     font-size: 0.8rem;
     color: var(--muted-foreground);
     margin-top: 0.2rem;
+}
+
+.ticketWaiter {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--primary);
 }
 
 .timer {

@@ -6,18 +6,47 @@ import { supabase } from '@/lib/supabase';
 import {
     getOrderNumber, formatOrderDate, buildImageMap, resolveItemImage, formatModifiers
 } from '@/lib/orderDisplay';
-import { UtensilsCrossed } from 'lucide-react';
+import LiveClock from '@/components/Layout/LiveClock';
+import {
+    UtensilsCrossed, ArrowRight, LayoutGrid, List, UserRound, Armchair,
+    ShoppingBag, Bike, Loader2, ClipboardList
+} from 'lucide-react';
+
+const ORDER_TYPE = {
+    'dine-in': { label: 'Dine-in', Icon: UtensilsCrossed },
+    'takeaway': { label: 'Takeaway', Icon: ShoppingBag },
+    'delivery': { label: 'Delivery', Icon: Bike }
+};
+
+const STATUS_LABEL = {
+    new: 'New',
+    preparing: 'Preparing',
+    ready: 'Ready',
+    completed: 'Completed',
+    cancelled: 'Cancelled'
+};
+
+const VIEWS = [
+    { key: 'grid', label: 'Grid view', Icon: LayoutGrid },
+    { key: 'list', label: 'List view', Icon: List }
+];
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState([]);
     const [activeTab, setActiveTab] = useState('all');
     const [itemImages, setItemImages] = useState({});
+    const [view, setView] = useState('grid');
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         getMenuItems().then(items => setItemImages(buildImageMap(items)));
 
         // Load orders on mount
         loadOrders();
+
+        // Restore the operator's last view choice
+        const saved = localStorage.getItem('orders:view');
+        if (saved === 'grid' || saved === 'list') setView(saved);
 
         // Real-time subscription for new orders
         const subscription = supabase
@@ -38,7 +67,14 @@ export default function OrdersPage() {
             setOrders(data);
         } catch (error) {
             console.error("Failed to load orders", error);
+        } finally {
+            setIsLoading(false);
         }
+    };
+
+    const changeView = (next) => {
+        setView(next);
+        localStorage.setItem('orders:view', next);
     };
 
     const filteredOrders = orders.filter(order => {
@@ -61,97 +97,219 @@ export default function OrdersPage() {
         }
     };
 
-    const getStatusLabel = (status) => {
-        const labels = {
-            new: 'New',
-            preparing: 'Preparing',
-            ready: 'Ready',
-            completed: 'Completed'
-        };
-        return labels[status] || status;
+    const getStatusLabel = (status) => STATUS_LABEL[status] || status;
+
+    // Order type, table and server — shown on both views
+    const OrderMeta = ({ order }) => {
+        const type = ORDER_TYPE[order.order_type];
+        return (
+            <div className={styles.metaRow}>
+                {type && (
+                    <span className={styles.metaChip}>
+                        <type.Icon size={13} aria-hidden="true" />
+                        {type.label}
+                    </span>
+                )}
+                {order.table_number && (
+                    <span className={styles.metaChip}>
+                        <Armchair size={13} aria-hidden="true" />
+                        {order.table_number}
+                    </span>
+                )}
+                {order.waiter_name && (
+                    <span className={`${styles.metaChip} ${styles.waiterChip}`}>
+                        <UserRound size={13} aria-hidden="true" />
+                        {order.waiter_name}
+                    </span>
+                )}
+            </div>
+        );
     };
+
+    const ItemThumb = ({ item, size = 36 }) => {
+        const image = resolveItemImage(item, itemImages);
+        return image
+            ? <img src={image} alt="" className={styles.itemThumb} style={{ width: size, height: size }} />
+            : (
+                <div className={styles.itemThumbFallback} style={{ width: size, height: size }}>
+                    <UtensilsCrossed size={Math.round(size * 0.45)} />
+                </div>
+            );
+    };
+
+    const NextStatusBtn = ({ order }) => (
+        <button
+            className={styles.actionBtn}
+            onClick={() => handleStatusUpdate(order.id, order.status)}
+        >
+            Next Status
+            <ArrowRight size={15} aria-hidden="true" />
+        </button>
+    );
 
     return (
         <div className={styles.container}>
             <div className={styles.header}>
-                <h1 className={styles.title}>Orders</h1>
-                <div className={styles.filters}>
-                    {['all', 'new', 'preparing', 'ready', 'completed'].map(tab => (
-                        <button
-                            key={tab}
-                            className={`${styles.filterTab} ${activeTab === tab ? styles.active : ''}`}
-                            onClick={() => setActiveTab(tab)}
-                        >
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                        </button>
-                    ))}
+                <div className={styles.headerLeft}>
+                    <h1 className={styles.title}>Orders</h1>
+                    <LiveClock className={styles.clock} />
+                </div>
+
+                <div className={styles.headerRight}>
+                    <div className={styles.filters}>
+                        {['all', 'new', 'preparing', 'ready', 'completed'].map(tab => (
+                            <button
+                                key={tab}
+                                className={`${styles.filterTab} ${activeTab === tab ? styles.active : ''}`}
+                                onClick={() => setActiveTab(tab)}
+                            >
+                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className={styles.viewToggle}>
+                        {VIEWS.map(({ key, label, Icon }) => (
+                            <button
+                                key={key}
+                                className={`${styles.viewBtn} ${view === key ? styles.activeView : ''}`}
+                                onClick={() => changeView(key)}
+                                title={label}
+                                aria-label={label}
+                                aria-pressed={view === key}
+                            >
+                                <Icon size={18} />
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            <div className={styles.ordersGrid}>
-                {filteredOrders.map(order => (
-                    <div key={order.id} className={styles.orderCard}>
-                        <div className={styles.cardHeader}>
-                            <div>
-                                <div className={styles.orderId}>Order #{getOrderNumber(order)}</div>
-                                <div className={styles.orderTime}>
-                                    {formatOrderDate(order.created_at)}
-                                </div>
-                            </div>
-                            <span className={`${styles.statusBadge} ${styles[`status_${order.status}`]}`}>
-                                {getStatusLabel(order.status)}
-                            </span>
-                        </div>
-
-                        <div className={styles.itemsList}>
-                            {order.items.map((item, idx) => {
-                                const image = resolveItemImage(item, itemImages);
-                                const mods = formatModifiers(item);
-                                return (
-                                    <div key={idx} className={styles.itemRow}>
-                                        {image ? (
-                                            <img src={image} alt="" className={styles.itemThumb} />
-                                        ) : (
-                                            <div className={styles.itemThumbFallback}>
-                                                <UtensilsCrossed size={16} />
-                                            </div>
-                                        )}
-                                        <div className={styles.itemInfo}>
-                                            <div className={styles.itemName}>
-                                                <span className={styles.itemQty}>{item.qty}x</span>
-                                                {item.name}
-                                            </div>
-                                            {mods && (
-                                                <div className={styles.itemModifiers}>{mods}</div>
-                                            )}
-                                        </div>
+            {isLoading ? (
+                <div className={styles.stateBlock}>
+                    <Loader2 className={styles.spinner} size={32} />
+                    <p>Loading orders…</p>
+                </div>
+            ) : filteredOrders.length === 0 ? (
+                <div className={styles.stateBlock}>
+                    <ClipboardList size={32} />
+                    <p>No orders in this category.</p>
+                </div>
+            ) : view === 'grid' ? (
+                /* ===== GRID ===== */
+                <div className={styles.ordersGrid}>
+                    {filteredOrders.map(order => (
+                        <div key={order.id} className={styles.orderCard}>
+                            <div className={styles.cardHeader}>
+                                <div>
+                                    <div className={styles.orderId}>Order #{getOrderNumber(order)}</div>
+                                    <div className={styles.orderTime}>
+                                        {formatOrderDate(order.created_at)}
                                     </div>
+                                </div>
+                                <span className={`${styles.statusBadge} ${styles[`status_${order.status}`]}`}>
+                                    {getStatusLabel(order.status)}
+                                </span>
+                            </div>
+
+                            <OrderMeta order={order} />
+
+                            <div className={styles.itemsList}>
+                                {order.items.map((item, idx) => {
+                                    const mods = formatModifiers(item);
+                                    return (
+                                        <div key={idx} className={styles.itemRow}>
+                                            <ItemThumb item={item} />
+                                            <div className={styles.itemInfo}>
+                                                <div className={styles.itemName}>
+                                                    <span className={styles.itemQty}>{item.qty}x</span>
+                                                    {item.name}
+                                                </div>
+                                                {mods && (
+                                                    <div className={styles.itemModifiers}>{mods}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className={styles.cardFooter}>
+                                <div className={styles.totalAmount}>
+                                    Rs. {order.total.toLocaleString()}
+                                </div>
+                                {order.status !== 'completed' && <NextStatusBtn order={order} />}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                /* ===== LIST ===== */
+                <div className={styles.listWrap}>
+                    <table className={styles.table}>
+                        <thead>
+                            <tr>
+                                <th>Order</th>
+                                <th>Placed</th>
+                                <th>Type / Table</th>
+                                <th>Waiter</th>
+                                <th>Items</th>
+                                <th>Status</th>
+                                <th className={styles.alignRight}>Total</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredOrders.map(order => {
+                                const type = ORDER_TYPE[order.order_type];
+                                return (
+                                    <tr key={order.id}>
+                                        <td className={styles.cellStrong}>
+                                            #{getOrderNumber(order)}
+                                        </td>
+                                        <td className={styles.cellMuted}>
+                                            {formatOrderDate(order.created_at)}
+                                        </td>
+                                        <td>
+                                            <span className={styles.cellInline}>
+                                                {type && <type.Icon size={14} aria-hidden="true" />}
+                                                {type?.label || order.order_type}
+                                                {order.table_number && ` · ${order.table_number}`}
+                                            </span>
+                                        </td>
+                                        <td className={styles.cellMuted}>
+                                            {order.waiter_name || '—'}
+                                        </td>
+                                        <td>
+                                            <div className={styles.listThumbs}>
+                                                {order.items.slice(0, 4).map((item, idx) => (
+                                                    <ItemThumb key={idx} item={item} size={28} />
+                                                ))}
+                                                {order.items.length > 4 && (
+                                                    <span className={styles.moreCount}>
+                                                        +{order.items.length - 4}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span className={`${styles.statusBadge} ${styles[`status_${order.status}`]}`}>
+                                                {getStatusLabel(order.status)}
+                                            </span>
+                                        </td>
+                                        <td className={`${styles.cellStrong} ${styles.alignRight}`}>
+                                            Rs. {order.total.toLocaleString()}
+                                        </td>
+                                        <td className={styles.alignRight}>
+                                            {order.status !== 'completed' && <NextStatusBtn order={order} />}
+                                        </td>
+                                    </tr>
                                 );
                             })}
-                        </div>
-
-                        <div className={styles.cardFooter}>
-                            <div className={styles.totalAmount}>
-                                Rs. {order.total.toLocaleString()}
-                            </div>
-                            {order.status !== 'completed' && (
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={() => handleStatusUpdate(order.id, order.status)}
-                                >
-                                    Next Status →
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                ))}
-
-                {filteredOrders.length === 0 && (
-                    <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'var(--muted-foreground)', marginTop: '2rem' }}>
-                        No orders in this category.
-                    </div>
-                )}
-            </div>
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }

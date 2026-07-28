@@ -11,12 +11,44 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
     margin-bottom: 2rem;
+}
+
+.headerLeft {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+}
+
+.headerRight {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
 }
 
 .title {
     font-size: 2rem;
     font-weight: 700;
+}
+
+.clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--muted-foreground);
+    font-variant-numeric: tabular-nums;
+}
+
+.clock strong {
+    color: var(--foreground);
+    font-weight: 700;
+}
+
+.clock span {
+    font-size: 0.85rem;
 }
 
 .filters {
@@ -26,6 +58,39 @@
     padding: 0.5rem;
     border-radius: 12px;
     border: 1px solid var(--border);
+}
+
+/* Grid / list switch */
+.viewToggle {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--card);
+    padding: 0.35rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.viewBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.viewBtn:hover {
+    color: var(--foreground);
+}
+
+.viewBtn.activeView {
+    background: var(--primary);
+    color: var(--primary-foreground);
 }
 
 .filterTab {
@@ -189,6 +254,9 @@
 }
 
 .actionBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     background: var(--primary);
     color: white;
     border: none;
@@ -197,9 +265,136 @@
     cursor: pointer;
     font-weight: 600;
     font-size: 0.85rem;
+    white-space: nowrap;
     transition: background 0.2s;
 }
 
 .actionBtn:hover {
     background: var(--primary-hover);
+}
+
+/* Order meta chips (type / table / waiter) */
+.metaRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.metaChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: var(--background);
+    border: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+}
+
+.waiterChip {
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* Loading / empty */
+.stateBlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 4rem 1rem;
+    color: var(--muted-foreground);
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+    color: var(--primary);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ===== List view ===== */
+.listWrap {
+    flex: 1;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card);
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--card);
+    text-align: left;
+    padding: 0.9rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted-foreground);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.cellStrong {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.cellMuted {
+    color: var(--muted-foreground);
+    white-space: nowrap;
+}
+
+.cellInline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+}
+
+.alignRight {
+    text-align: right;
+}
+
+.listThumbs {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.moreCount {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--muted-foreground);
+    padding-left: 0.15rem;
 }

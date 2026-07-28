@@ -7,7 +7,8 @@ import { supabase } from '@/lib/supabase';
 import {
     getOrderNumber, buildImageMap, resolveItemImage, formatModifiers
 } from '@/lib/orderDisplay';
-import { UtensilsCrossed, Volume2, VolumeX, Maximize2 } from 'lucide-react';
+import LiveClock from '@/components/Layout/LiveClock';
+import { UtensilsCrossed, Volume2, VolumeX, Maximize2, UserRound } from 'lucide-react';
 
 // Kitchen lanes, in the order tickets flow across the screen
 const LANES = [
@@ -187,11 +188,7 @@ export default function KDSPage() {
                 </div>
 
                 <div className={styles.topRight}>
-                    <span className={styles.clock}>
-                        {now === null
-                            ? ''
-                            : new Date(now).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                    </span>
+                    <LiveClock className={styles.clock} showSeconds iconSize={18} />
                     <button
                         className={styles.iconBtn}
                         onClick={() => setSoundOn(v => !v)}
@@ -225,6 +222,12 @@ export default function KDSPage() {
                                                 {ORDER_TYPE_LABEL[order.order_type] || order.order_type}
                                                 {order.table_number && ` · ${order.table_number}`}
                                             </div>
+                                            {order.waiter_name && (
+                                                <div className={styles.ticketWaiter}>
+                                                    <UserRound size={13} aria-hidden="true" />
+                                                    {order.waiter_name}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className={styles.timer}>{formatElapsed(order)}</div>
                                     </div>

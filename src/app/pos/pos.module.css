@@ -39,6 +39,11 @@
     outline: none;
 }
 
+.searchIcon {
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+}
+
 .customerInfo {
     background: var(--card);
     padding: 0.75rem 1.5rem;
@@ -46,6 +51,106 @@
     color: var(--primary);
     font-weight: 600;
     border: 1px solid var(--border);
+}
+
+.headerClock {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--foreground);
+    font-variant-numeric: tabular-nums;
+}
+
+.headerClock strong {
+    font-weight: 700;
+}
+
+.headerClock span {
+    color: var(--muted-foreground);
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+/* Order details (waiter / table / type) */
+.orderDetails {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.orderTypeRow {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.typeBtn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.4rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.typeBtn:hover {
+    color: var(--foreground);
+    border-color: var(--primary);
+}
+
+.typeBtn.activeType {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-color: var(--primary);
+}
+
+.detailFields {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.fieldLabel {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-foreground);
+}
+
+.fieldInput {
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--input);
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.fieldInput:focus {
+    outline: none;
+    border-color: var(--primary);
 }
 
 /* Categories */
@@ -369,8 +474,10 @@
     border: none;
     color: var(--muted);
     cursor: pointer;
-    font-size: 1.25rem;
-    padding: 0 0.5rem;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .removeBtn:hover {
@@ -386,6 +493,10 @@
 
 .modeBtn {
     flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
     padding: 0.75rem;
     border-radius: var(--radius);
     border: 1px solid var(--border);
@@ -405,9 +516,24 @@
 /* Empty State */
 .emptyState {
     grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
     padding: 3rem;
     color: var(--muted-foreground);
+}
+
+.loadingSpinner {
+    color: var(--primary);
+    margin-bottom: 0.75rem;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Tax Toggle */
