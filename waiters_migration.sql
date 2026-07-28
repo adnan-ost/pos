@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS waiters (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
-  code TEXT,                       -- short badge/staff code, e.g. "W-04"
+  code TEXT UNIQUE,                -- short badge/staff code, e.g. "W-04"
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -24,7 +24,14 @@ INSERT INTO waiters (name, code) VALUES
   ('Danish Iqbal', 'W-03'),
   ('Faisal Khan', 'W-04'),
   ('Hamza Tariq', 'W-05'),
-  ('Usman Ghani', 'W-06');
+  ('Usman Ghani', 'W-06'),
+  ('Ali Hassan', 'W-07'),
+  ('Zain Abbas', 'W-08'),
+  ('Saad Malik', 'W-09'),
+  ('Kashif Nawaz', 'W-10'),
+  ('Waqas Ahmed', 'W-11'),
+  ('Fahad Sheikh', 'W-12')
+ON CONFLICT (code) DO NOTHING;
 
 -- Readable by the app, writable only by signed-in staff
 ALTER TABLE waiters ENABLE ROW LEVEL SECURITY;
