@@ -9,7 +9,7 @@ import {
 import LiveClock from '@/components/Layout/LiveClock';
 import {
     UtensilsCrossed, ArrowRight, LayoutGrid, List, UserRound, Armchair,
-    ShoppingBag, Bike, Loader2, ClipboardList
+    ShoppingBag, Bike, Loader2, ClipboardList, Layers, Wallet
 } from 'lucide-react';
 
 const ORDER_TYPE = {
@@ -30,6 +30,13 @@ const VIEWS = [
     { key: 'grid', label: 'Grid view', Icon: LayoutGrid },
     { key: 'list', label: 'List view', Icon: List }
 ];
+
+// Kitchen status filters, plus one for money still owed
+const FILTERS = ['all', 'unpaid', 'new', 'preparing', 'ready', 'completed'];
+
+const FILTER_LABEL = { all: 'All', unpaid: 'Unpaid' };
+
+const isOpenTab = (order) => order.payment_status === 'unpaid';
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState([]);
@@ -79,6 +86,9 @@ export default function OrdersPage() {
 
     const filteredOrders = orders.filter(order => {
         if (activeTab === 'all') return true;
+        // "Unpaid" cuts across the kitchen flow: an open tab can be at any
+        // stage, including served, and still owe money
+        if (activeTab === 'unpaid') return isOpenTab(order) && order.status !== 'cancelled';
         return order.status === activeTab;
     });
 
@@ -98,6 +108,34 @@ export default function OrdersPage() {
     };
 
     const getStatusLabel = (status) => STATUS_LABEL[status] || status;
+
+    const unpaidCount = orders.filter(o => isOpenTab(o) && o.status !== 'cancelled').length;
+
+    // Rounds and payment state — an open tab reads differently to a paid order
+    const PaymentChips = ({ order }) => {
+        const rounds = order.round_count || 1;
+        return (
+            <>
+                {rounds > 1 && (
+                    <span className={styles.metaChip}>
+                        <Layers size={13} aria-hidden="true" />
+                        {rounds} rounds
+                    </span>
+                )}
+                {isOpenTab(order) ? (
+                    <span className={`${styles.metaChip} ${styles.unpaidChip}`}>
+                        <Wallet size={13} aria-hidden="true" />
+                        Unpaid tab
+                    </span>
+                ) : order.payment_mode && (
+                    <span className={styles.metaChip}>
+                        <Wallet size={13} aria-hidden="true" />
+                        {order.payment_mode === 'card' ? 'Card' : 'Cash'}
+                    </span>
+                )}
+            </>
+        );
+    };
 
     // Order type, table and server — shown on both views
     const OrderMeta = ({ order }) => {
@@ -122,6 +160,7 @@ export default function OrdersPage() {
                         {order.waiter_name}
                     </span>
                 )}
+                <PaymentChips order={order} />
             </div>
         );
     };
@@ -157,13 +196,16 @@ export default function OrdersPage() {
 
                 <div className={styles.headerRight}>
                     <div className={styles.filters}>
-                        {['all', 'new', 'preparing', 'ready', 'completed'].map(tab => (
+                        {FILTERS.map(tab => (
                             <button
                                 key={tab}
                                 className={`${styles.filterTab} ${activeTab === tab ? styles.active : ''}`}
                                 onClick={() => setActiveTab(tab)}
                             >
-                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                {FILTER_LABEL[tab] || tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                {tab === 'unpaid' && unpaidCount > 0 && (
+                                    <span className={styles.filterCount}>{unpaidCount}</span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -299,6 +341,13 @@ export default function OrdersPage() {
                                         </td>
                                         <td className={`${styles.cellStrong} ${styles.alignRight}`}>
                                             Rs. {order.total.toLocaleString()}
+                                            {isOpenTab(order) && (
+                                                <div className={styles.unpaidNote}>
+                                                    Unpaid
+                                                    {(order.round_count || 1) > 1 &&
+                                                        ` · ${order.round_count} rounds`}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className={styles.alignRight}>
                                             {order.status !== 'completed' && <NextStatusBtn order={order} />}

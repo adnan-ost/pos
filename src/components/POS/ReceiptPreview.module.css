@@ -170,3 +170,9 @@
     background: var(--primary);
     color: white;
 }
+
+.cancelBtn:disabled,
+.printBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

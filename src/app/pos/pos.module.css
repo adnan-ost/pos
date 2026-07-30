@@ -44,6 +44,54 @@
     flex-shrink: 0;
 }
 
+.headerRight {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Way back into any unpaid check */
+.tabsBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted-foreground);
+    padding: 0.75rem 1.1rem;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tabsBtn:hover {
+    color: var(--foreground);
+    border-color: var(--primary);
+}
+
+/* Money is sitting on the floor unpaid — make that visible at a glance */
+.tabsBtnActive {
+    color: var(--foreground);
+    border-color: var(--primary);
+}
+
+.tabsCount {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: 999px;
+    min-width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0 0.35rem;
+}
+
 .customerInfo {
     background: var(--card);
     padding: 0.75rem 1.5rem;
@@ -51,6 +99,34 @@
     color: var(--primary);
     font-weight: 600;
     border: 1px solid var(--border);
+}
+
+.toast {
+    position: fixed;
+    top: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    background: var(--card);
+    border: 1px solid var(--primary);
+    color: var(--foreground);
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    font-weight: 500;
+    box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.6);
+    animation: toastIn 0.2s ease-out;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -8px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
 }
 
 .headerClock {
@@ -328,14 +404,27 @@
     transform: scale(1.1);
 }
 
-/* Cart Section */
+/* Cart Section — mounts only once the order has items, so it slides in */
 .cartSection {
     width: 400px;
+    flex-shrink: 0;
     background: var(--card);
     border-left: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     height: 100vh;
+    animation: slideInCart 0.22s ease-out;
+}
+
+@keyframes slideInCart {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
 .cartHeader {
@@ -350,9 +439,55 @@
     font-size: 1.25rem;
 }
 
+.cartSubtitle {
+    color: var(--accent);
+    font-size: 0.78rem;
+    margin-top: 0.2rem;
+}
+
+.cartHeaderRight {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .orderId {
     color: var(--muted-foreground);
     font-family: monospace;
+}
+
+.detachBtn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted-foreground);
+    border-radius: var(--radius);
+    padding: 0.3rem;
+    display: flex;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.detachBtn:hover {
+    color: var(--destructive);
+    border-color: var(--destructive);
+}
+
+/* An open tab keeps the type it was opened with */
+.typeLocked {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--radius);
+    border: 1px dashed var(--border);
+    color: var(--foreground);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.typeLockedNote {
+    color: var(--muted-foreground);
+    font-weight: 500;
 }
 
 .cartItems {
@@ -361,10 +496,67 @@
     padding: 1rem;
 }
 
-.emptyCart {
+/* Rounds already fired: shown so the bill can be checked, not edited */
+.sentBlock {
+    margin-bottom: 0.5rem;
+}
+
+.sectionLabel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     color: var(--muted-foreground);
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.35rem;
+}
+
+.sentRow {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    font-size: 0.88rem;
+    color: var(--muted-foreground);
+}
+
+.sentQty {
+    font-weight: 700;
+    color: var(--foreground);
+    min-width: 26px;
+}
+
+.sentName {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+
+.roundTag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--muted-foreground);
+}
+
+.sentPrice {
+    white-space: nowrap;
+}
+
+.tabHint {
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
     text-align: center;
-    margin-top: 2rem;
+    padding: 1.5rem 1rem;
+    line-height: 1.5;
 }
 
 .cartSummary {
@@ -399,13 +591,49 @@
     border-radius: var(--radius);
     font-size: 1rem;
     font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
     margin-top: 1.5rem;
     transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
-.checkoutBtn:hover {
+.checkoutBtn:hover:not(:disabled) {
     background: var(--primary-hover);
+}
+
+/* Second action on the cart: open a tab, or settle the one attached */
+.secondaryBtn {
+    width: 100%;
+    background: transparent;
+    color: var(--foreground);
+    border: 1px solid var(--border);
+    padding: 0.85rem;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 0.6rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.secondaryBtn:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.checkoutBtn:disabled,
+.secondaryBtn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 /* Cart Items */

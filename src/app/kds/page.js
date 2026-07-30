@@ -7,8 +7,9 @@ import { supabase } from '@/lib/supabase';
 import {
     getOrderNumber, buildImageMap, resolveItemImage, formatModifiers
 } from '@/lib/orderDisplay';
+import { isLatestRound } from '@/lib/orderTotals';
 import LiveClock from '@/components/Layout/LiveClock';
-import { UtensilsCrossed, Volume2, VolumeX, Maximize2, UserRound } from 'lucide-react';
+import { UtensilsCrossed, Volume2, VolumeX, Maximize2, UserRound, Layers } from 'lucide-react';
 
 // Kitchen lanes, in the order tickets flow across the screen
 const LANES = [
@@ -26,6 +27,14 @@ const ORDER_TYPE_LABEL = {
     'takeaway': 'Takeaway',
     'delivery': 'Delivery'
 };
+
+/*
+ * When a round is added to an open tab the ticket is re-fired, so the clock
+ * that matters is when the *newest* food was ordered — not when the table sat
+ * down. Without this a round added an hour into a sitting lands on the board
+ * already flagged as an hour late.
+ */
+const firedAt = (order) => new Date(order.last_round_at || order.created_at).getTime();
 
 export default function KDSPage() {
     const [orders, setOrders] = useState([]);
@@ -67,14 +76,22 @@ export default function KDSPage() {
             const data = await getOrders();
             const active = data.filter(o => LANES.some(l => l.key === o.status));
 
-            // Chime when a ticket appears that we have not seen before. The
-            // first load seeds the set instead of firing for every open order.
-            const ids = new Set(active.map(o => o.id));
+            /*
+             * Chime for food the kitchen has not been told about yet: a ticket
+             * we have never seen, or a known tab that just had another round
+             * added. Tracking rounds as well as ids matters — an added round
+             * re-uses the same ticket, so an id-only check would stay silent.
+             * The first load seeds the map instead of firing for every ticket.
+             */
+            const rounds = new Map(active.map(o => [o.id, o.round_count || 1]));
             if (knownIds.current === null) {
-                knownIds.current = ids;
+                knownIds.current = rounds;
             } else {
-                const isNew = active.some(o => !knownIds.current.has(o.id));
-                knownIds.current = ids;
+                const isNew = active.some(o => {
+                    const seen = knownIds.current.get(o.id);
+                    return seen === undefined || (o.round_count || 1) > seen;
+                });
+                knownIds.current = rounds;
                 if (isNew) chime();
             }
 
@@ -127,7 +144,7 @@ export default function KDSPage() {
     };
 
     const elapsedMinutes = (order) =>
-        now === null ? null : (now - new Date(order.created_at).getTime()) / 60000;
+        now === null ? null : (now - firedAt(order)) / 60000;
 
     const formatElapsed = (order) => {
         const mins = elapsedMinutes(order);
@@ -149,13 +166,13 @@ export default function KDSPage() {
         return '';
     };
 
-    // Oldest first: the kitchen works tickets FIFO
+    // Oldest first: the kitchen works tickets FIFO, by when the food was fired
     const lanes = useMemo(() => {
         const byLane = {};
         LANES.forEach(lane => {
             byLane[lane.key] = orders
                 .filter(o => o.status === lane.key)
-                .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                .sort((a, b) => firedAt(a) - firedAt(b));
         });
         return byLane;
     }, [orders]);
@@ -217,10 +234,17 @@ export default function KDSPage() {
                                         <div>
                                             <div className={styles.ticketNumber}>
                                                 #{getOrderNumber(order)}
+                                                {(order.round_count || 1) > 1 && (
+                                                    <span className={styles.roundBadge}>
+                                                        <Layers size={12} aria-hidden="true" />
+                                                        Round {order.round_count}
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className={styles.ticketMeta}>
                                                 {ORDER_TYPE_LABEL[order.order_type] || order.order_type}
                                                 {order.table_number && ` · ${order.table_number}`}
+                                                {order.payment_status === 'unpaid' && ' · open tab'}
                                             </div>
                                             {order.waiter_name && (
                                                 <div className={styles.ticketWaiter}>
@@ -233,11 +257,22 @@ export default function KDSPage() {
                                     </div>
 
                                     <ul className={styles.items}>
+                                        {/* Only a re-fired tab needs old rounds played down */}
                                         {order.items.map((item, idx) => {
                                             const image = resolveItemImage(item, imageMap);
                                             const mods = formatModifiers(item);
+                                            // Lines from earlier rounds are already cooked; only
+                                            // the newest round is work still to do. A
+                                            // single-round ticket is all work, so it is left plain.
+                                            const multiRound = (order.round_count || 1) > 1;
+                                            const isNew = isLatestRound(item, order);
+                                            const emphasis = !multiRound ? ''
+                                                : isNew ? styles.itemNew : styles.itemDone;
                                             return (
-                                                <li key={idx} className={styles.item}>
+                                                <li
+                                                    key={idx}
+                                                    className={`${styles.item} ${emphasis}`}
+                                                >
                                                     {image ? (
                                                         <img src={image} alt="" className={styles.thumb} />
                                                     ) : (
@@ -250,6 +285,7 @@ export default function KDSPage() {
                                                         {item.name}
                                                         {mods && <span className={styles.mods}>{mods}</span>}
                                                     </span>
+                                                    {isNew && <span className={styles.newTag}>NEW</span>}
                                                 </li>
                                             );
                                         })}

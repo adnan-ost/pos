@@ -4,9 +4,15 @@ import { generateEMVCoPayload } from '@/lib/emvco';
 import { getSettings } from '@/app/settings/actions';
 import styles from './ReceiptPreview.module.css';
 
-const ReceiptPreview = ({ cart, totals, includeTax, invoiceNumber, onClose, onPrint }) => {
+const ReceiptPreview = ({
+    cart, totals, includeTax, invoiceNumber, meta, printLabel, busy, onClose, onPrint
+}) => {
     const [settings, setSettings] = useState(null);
-    const invoiceNo = invoiceNumber || `FBR-${Math.floor(100000 + Math.random() * 900000)}`;
+    // Generated once per receipt: rolling it during render changed the invoice
+    // number (and the QR it encodes) every time the component re-rendered
+    const [invoiceNo] = useState(
+        () => invoiceNumber || `FBR-${Math.floor(100000 + Math.random() * 900000)}`
+    );
     const date = new Date().toLocaleString();
 
     useEffect(() => {
@@ -45,6 +51,21 @@ const ReceiptPreview = ({ cart, totals, includeTax, invoiceNumber, onClose, onPr
                         <span>Date: {date}</span>
                         <span>User: Admin</span>
                     </div>
+
+                    {/* Table, server and — for a tab settled at the end — the
+                        number of rounds that make up this one bill */}
+                    {meta && (meta.orderNumber || meta.table || meta.waiter) && (
+                        <div className={styles.meta}>
+                            <span>
+                                {meta.orderNumber && `Order #${meta.orderNumber}`}
+                                {meta.table && `${meta.orderNumber ? ' · ' : ''}Table ${meta.table}`}
+                            </span>
+                            <span>
+                                {meta.waiter && `Served by: ${meta.waiter}`}
+                                {meta.rounds > 1 && ` · ${meta.rounds} rounds`}
+                            </span>
+                        </div>
+                    )}
 
                     {/* Items */}
                     <div className={styles.items}>
@@ -120,8 +141,10 @@ const ReceiptPreview = ({ cart, totals, includeTax, invoiceNumber, onClose, onPr
                 </div>
 
                 <div className={styles.actions}>
-                    <button className={styles.cancelBtn} onClick={onClose}>Back</button>
-                    <button className={styles.printBtn} onClick={onPrint}>Print & Close</button>
+                    <button className={styles.cancelBtn} onClick={onClose} disabled={busy}>Back</button>
+                    <button className={styles.printBtn} onClick={onPrint} disabled={busy}>
+                        {busy ? 'Saving…' : (printLabel || 'Print & Close')}
+                    </button>
                 </div>
             </div>
         </div>
