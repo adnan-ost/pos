@@ -88,7 +88,7 @@ export default function ReportsPage() {
     }
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-8 bg-gray-950 min-h-screen text-gray-100" id="report-root" ref={printRef}>
+        <div className="w-full px-4 sm:px-6 lg:px-10 py-6 sm:py-8 space-y-8 bg-gray-950 min-h-screen text-gray-100" id="report-root" ref={printRef}>
 
             {/* Print-only masthead: the interactive header below is hidden when printing */}
             <div className="report-print-header hidden">
@@ -102,17 +102,18 @@ export default function ReportsPage() {
             </div>
 
             {/* Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 no-print">
-                <div>
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold text-white">Analytics Dashboard</h1>
-                        <LiveClock className="hidden sm:inline-flex items-center gap-2 text-gray-400 text-sm font-medium" showSeconds={false} iconSize={15} />
+            <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4 no-print">
+                <div className="min-w-0">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white whitespace-nowrap">Analytics Dashboard</h1>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-gray-400 text-sm sm:text-base">
+                        <span>Overview of your store's performance</span>
+                        <span className="hidden sm:inline text-gray-700">·</span>
+                        <LiveClock className="hidden sm:inline-flex items-center gap-1.5 text-gray-400 text-sm font-medium" showSeconds={false} iconSize={14} />
                     </div>
-                    <p className="text-gray-400 mt-1">Overview of your store's performance</p>
                 </div>
 
                 {/* Filter Controls */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex flex-wrap items-stretch sm:items-center gap-3">
                     {/* Preset Buttons */}
                     <div className="flex bg-gray-900/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-800/50 p-1.5">
                         {[
