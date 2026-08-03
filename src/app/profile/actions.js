@@ -2,6 +2,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getRole } from '@/lib/supabase/role'
 import { revalidatePath } from 'next/cache'
 
 export async function updatePassword(formData) {
@@ -31,5 +32,7 @@ export async function updatePassword(formData) {
 export async function getUser() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    return user
+    if (!user) return null
+    const role = await getRole(supabase, user.id)
+    return { ...user, role }
 }

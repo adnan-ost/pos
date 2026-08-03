@@ -5,7 +5,6 @@ import {
     getMenuItems, getCategories, addOrder, getModifiers, getWaiters,
     getOpenTabs, appendRoundToOrder, settleOrder
 } from '@/lib/supabaseDb';
-import { supabase } from '@/lib/supabase';
 import { calcTotals, itemRound } from '@/lib/orderTotals';
 import { getOrderNumber, formatOrderDate } from '@/lib/orderDisplay';
 
@@ -13,6 +12,7 @@ import ModifierModal from '@/components/POS/ModifierModal';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
 import TabsDrawer from '@/components/POS/TabsDrawer';
 import LiveClock from '@/components/Layout/LiveClock';
+import { useRole } from '@/components/Layout/AppLayout';
 
 import {
     Soup, Flame, Utensils, Cookie, GlassWater, Plus, CirclePlus,
@@ -40,6 +40,7 @@ const CategoryIcon = ({ name, size = 18 }) => {
 };
 
 export default function POSPage() {
+    const role = useRole();
     const [menuData, setMenuData] = useState({ categories: [], items: [], modifiers: {} });
     const [activeCategory, setActiveCategory] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
@@ -379,6 +380,7 @@ export default function POSPage() {
                         waiter: selectedWaiter?.name
                     }}
                     printLabel={receiptMode === 'settle' ? 'Print Bill & Settle' : 'Print & Close'}
+                    role={role}
                     busy={isSending}
                     onClose={() => setReceiptMode(null)}
                     onPrint={receiptMode === 'settle' ? handleSettle : handlePayNow}

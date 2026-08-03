@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import styles from './orders.module.css';
 import { getOrders, updateOrderStatus, getMenuItems } from '@/lib/supabaseDb';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import {
     getOrderNumber, formatOrderDate, buildImageMap, resolveItemImage, formatModifiers
 } from '@/lib/orderDisplay';
@@ -55,7 +55,10 @@ export default function OrdersPage() {
         const saved = localStorage.getItem('orders:view');
         if (saved === 'grid' || saved === 'list') setView(saved);
 
-        // Real-time subscription for new orders
+        // Real-time subscription for new orders. A session-aware client is
+        // required here: once orders/customers move to authenticated-only
+        // RLS, an anon-key subscription would silently receive nothing.
+        const supabase = createClient();
         const subscription = supabase
             .channel('orders_channel')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {

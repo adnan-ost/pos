@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import styles from './kds.module.css';
 import { getOrders, updateOrderStatus, getMenuItems } from '@/lib/supabaseDb';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import {
     getOrderNumber, buildImageMap, resolveItemImage, formatModifiers
 } from '@/lib/orderDisplay';
@@ -47,6 +47,9 @@ export default function KDSPage() {
         getMenuItems().then(items => setImageMap(buildImageMap(items)));
         loadOrders();
 
+        // Session-aware client: once `orders` moves to authenticated-only
+        // RLS, an anon-key subscription would silently receive nothing.
+        const supabase = createClient();
         const subscription = supabase
             .channel('kds_channel')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {

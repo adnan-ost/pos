@@ -1,6 +1,7 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
+import { getRole } from './role'
 
 export async function updateSession(request) {
     let supabaseResponse = NextResponse.next({
@@ -38,19 +39,29 @@ export async function updateSession(request) {
         data: { user },
     } = await supabase.auth.getUser()
 
-    if (
-        !user &&
-        !request.nextUrl.pathname.startsWith('/login')
-    ) {
+    const pathname = request.nextUrl.pathname
+    const protectedPaths = ['/pos', '/orders', '/kds', '/menu', '/profile', '/reports', '/settings'];
+    const adminOnlyPaths = ['/menu', '/reports', '/settings'];
+
+    if (!user && !pathname.startsWith('/login')) {
         // Only redirect if accessing protected routes
-        const protectedPaths = ['/pos', '/orders', '/kds', '/menu', '/profile', '/reports'];
-        const isProtected = protectedPaths.some(path =>
-            request.nextUrl.pathname.startsWith(path)
-        );
+        const isProtected = protectedPaths.some(path => pathname.startsWith(path))
 
         if (isProtected) {
             const url = request.nextUrl.clone()
             url.pathname = '/login'
+            return NextResponse.redirect(url)
+        }
+    }
+
+    // Signed in but wrong role: redirect to /pos, not /login — they ARE
+    // authenticated, just not authorized for this route. Role is always
+    // re-derived from `profiles` here, never trusted from client input.
+    if (user && adminOnlyPaths.some(path => pathname.startsWith(path))) {
+        const role = await getRole(supabase, user.id)
+        if (role !== 'admin') {
+            const url = request.nextUrl.clone()
+            url.pathname = '/pos'
             return NextResponse.redirect(url)
         }
     }

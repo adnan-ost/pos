@@ -4,8 +4,10 @@ import { generateEMVCoPayload } from '@/lib/emvco';
 import { getSettings } from '@/app/settings/actions';
 import styles from './ReceiptPreview.module.css';
 
+const ROLE_LABEL = { admin: 'Admin', staff: 'Staff' };
+
 const ReceiptPreview = ({
-    cart, totals, includeTax, invoiceNumber, meta, printLabel, busy, onClose, onPrint
+    cart, totals, includeTax, invoiceNumber, meta, printLabel, role, busy, onClose, onPrint
 }) => {
     const [settings, setSettings] = useState(null);
     // Generated once per receipt: rolling it during render changed the invoice
@@ -49,7 +51,7 @@ const ReceiptPreview = ({
                     {/* Meta */}
                     <div className={styles.meta}>
                         <span>Date: {date}</span>
-                        <span>User: Admin</span>
+                        <span>User: {ROLE_LABEL[role] || 'Staff'}</span>
                     </div>
 
                     {/* Table, server and — for a tab settled at the end — the

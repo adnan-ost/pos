@@ -2,9 +2,15 @@
 
 import { useState } from 'react'
 import { login } from './actions'
-import { Utensils, Loader2 } from 'lucide-react'
+import { Utensils, Loader2, ShieldCheck, UserRound } from 'lucide-react'
+
+const ROLES = [
+    { key: 'admin', label: 'Admin', Icon: ShieldCheck },
+    { key: 'staff', label: 'Staff', Icon: UserRound },
+]
 
 export default function LoginPage() {
+    const [role, setRole] = useState('admin')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
@@ -31,40 +37,47 @@ export default function LoginPage() {
                         Flames by the Indus
                     </h2>
                     <p className="mt-2 text-sm text-gray-400">
-                        Admin Portal Access
+                        Staff Sign In
                     </p>
                 </div>
 
                 <form className="mt-8 space-y-6" action={handleSubmit}>
-                    <div className="space-y-4">
-                        <div>
-                            <label htmlFor="email-address" className="block text-sm font-medium text-gray-300 mb-1">
-                                Email address
-                            </label>
-                            <input
-                                id="email-address"
-                                name="email"
-                                type="email"
-                                autoComplete="email"
-                                required
-                                className="appearance-none block w-full px-4 py-3 border border-gray-600 rounded-lg bg-gray-900/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200"
-                                placeholder="admin@example.com"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
-                                Password
-                            </label>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                autoComplete="current-password"
-                                required
-                                className="appearance-none block w-full px-4 py-3 border border-gray-600 rounded-lg bg-gray-900/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200"
-                                placeholder="••••••••"
-                            />
-                        </div>
+                    <input type="hidden" name="role" value={role} />
+
+                    <div className="grid grid-cols-2 gap-3">
+                        {ROLES.map(({ key, label, Icon }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => setRole(key)}
+                                className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold border transition-all duration-200 ${role === key
+                                        ? 'bg-orange-600 border-orange-500 text-white shadow-lg shadow-orange-500/20'
+                                        : 'bg-gray-900/50 border-gray-600 text-gray-300 hover:border-gray-500'
+                                    }`}
+                            >
+                                <Icon className="h-4 w-4" />
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div>
+                        <label htmlFor="pin" className="block text-sm font-medium text-gray-300 mb-1">
+                            {role === 'admin' ? 'Admin PIN' : 'Staff PIN'}
+                        </label>
+                        <input
+                            id="pin"
+                            name="pin"
+                            type="password"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={6}
+                            autoComplete="off"
+                            required
+                            autoFocus
+                            className="appearance-none block w-full px-4 py-3 border border-gray-600 rounded-lg bg-gray-900/50 text-white placeholder-gray-500 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200"
+                            placeholder="••••••"
+                        />
                     </div>
 
                     {error && (
@@ -83,10 +96,10 @@ export default function LoginPage() {
                         {loading ? (
                             <span className="flex items-center">
                                 <Loader2 className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
-                                Authenticating...
+                                Signing in...
                             </span>
                         ) : (
-                            'Sign in to Dashboard'
+                            'Sign In'
                         )}
                     </button>
                 </form>

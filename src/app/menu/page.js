@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import styles from './menu.module.css';
-import Sidebar from '@/components/Layout/Sidebar';
 import MenuItemForm from '@/components/Menu/MenuItemForm';
 import CategoryForm from '@/components/Menu/CategoryForm';
 import {
@@ -150,7 +149,6 @@ export default function MenuManagementPage() {
     if (isLoading) {
         return (
             <div className={styles.container}>
-                <Sidebar />
                 <main className={styles.mainContent}>
                     <div className={styles.loading}>Loading menu data...</div>
                 </main>
@@ -160,8 +158,6 @@ export default function MenuManagementPage() {
 
     return (
         <div className={styles.container}>
-            <Sidebar />
-
             <main className={styles.mainContent}>
                 {/* Header */}
                 <div className={styles.header}>

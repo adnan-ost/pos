@@ -61,11 +61,13 @@ export default function ProfilePage() {
 
                     <div className="grid gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                            <div className="p-3 bg-gray-50 rounded-lg text-gray-600 font-medium font-mono border border-gray-200">
-                                {user?.email}
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                            <div className="p-3 bg-gray-50 rounded-lg text-gray-600 font-medium border border-gray-200">
+                                {user?.role === 'admin' ? 'Admin' : 'Staff'}
                             </div>
-                            <p className="mt-1 text-xs text-gray-500">Email cannot be changed directly.</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                                This is a shared account for the {user?.role === 'admin' ? 'Admin' : 'Staff'} role, not a personal login.
+                            </p>
                         </div>
                     </div>
                 </div>
