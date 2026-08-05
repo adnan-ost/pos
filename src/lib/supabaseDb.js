@@ -144,6 +144,81 @@ export const getOrders = async () => {
     return data;
 };
 
+export const ORDERS_PAGE_SIZES = [25, 50, 100];
+
+/*
+ * Paged, filtered order history.
+ *
+ * Filtering and slicing happen in Postgres rather than in the browser: this
+ * table only ever grows, and a till that fetched every order it had ever taken
+ * to show twenty-five of them would get slower every week it ran.
+ *
+ * Returns the total alongside the rows so the pager can show a real count
+ * without a second round trip.
+ */
+export const getOrdersPage = async ({
+    page = 1,
+    pageSize = 25,
+    status = 'all',      // 'all' | 'unpaid' | a kitchen status
+    orderType = 'all',
+    from = null,         // ISO timestamp, inclusive
+    to = null,           // ISO timestamp, inclusive
+    sort = 'newest',
+} = {}) => {
+    let query = supabase.from('orders').select('*', { count: 'exact' });
+
+    if (status === 'unpaid') {
+        // Cuts across the kitchen flow: an open tab can be at any stage,
+        // including served, and still owe money.
+        query = query.eq('payment_status', 'unpaid').neq('status', 'cancelled');
+    } else if (status !== 'all') {
+        query = query.eq('status', status);
+    }
+
+    if (orderType !== 'all') query = query.eq('order_type', orderType);
+    if (from) query = query.gte('created_at', from);
+    if (to) query = query.lte('created_at', to);
+
+    const SORTS = {
+        newest: ['created_at', false],
+        oldest: ['created_at', true],
+        highest: ['total', false],
+        lowest: ['total', true],
+    };
+    const [column, ascending] = SORTS[sort] || SORTS.newest;
+    query = query.order(column, { ascending });
+
+    // Tie-break on id so equal totals can't shuffle between pages and hide a
+    // row, or show one twice, as the operator clicks through.
+    if (column !== 'created_at') query = query.order('created_at', { ascending: false });
+    query = query.order('id', { ascending: true });
+
+    const start = (page - 1) * pageSize;
+    const { data, error, count } = await query.range(start, start + pageSize - 1);
+
+    if (error) {
+        console.error('Error fetching orders page:', error);
+        return { rows: [], total: 0 };
+    }
+    return { rows: data || [], total: count ?? 0 };
+};
+
+// Counted separately from the current page: the badge means "unpaid overall",
+// not "unpaid among the rows you happen to be looking at".
+export const getUnpaidOrdersCount = async () => {
+    const { count, error } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('payment_status', 'unpaid')
+        .neq('status', 'cancelled');
+
+    if (error) {
+        console.error('Error counting unpaid orders:', error);
+        return 0;
+    }
+    return count ?? 0;
+};
+
 export const addOrder = async (order) => {
     const now = new Date().toISOString();
     const orderData = {

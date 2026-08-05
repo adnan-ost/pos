@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { generateEMVCoPayload } from '@/lib/emvco';
 import { getSettings } from '@/app/settings/actions';
+import { formatDateTime } from '@/lib/timeFormat';
 import styles from './ReceiptPreview.module.css';
 
 const ROLE_LABEL = { admin: 'Admin', staff: 'Staff' };
@@ -15,7 +16,9 @@ const ReceiptPreview = ({
     const [invoiceNo] = useState(
         () => invoiceNumber || `FBR-${Math.floor(100000 + Math.random() * 900000)}`
     );
-    const date = new Date().toLocaleString();
+    // Pinned on open for the same reason as the invoice number: read fresh on
+    // every render, the printed time drifted between preview and print.
+    const [date] = useState(() => formatDateTime(new Date()));
 
     useEffect(() => {
         getSettings().then(setSettings);

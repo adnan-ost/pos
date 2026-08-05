@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
+import { formatClockTime, formatWeekdayDate } from '@/lib/timeFormat';
 
 /**
  * Local wall-clock time, ticking once a second.
@@ -27,17 +28,8 @@ export default function LiveClock({ showDate = true, showSeconds = false, classN
         return <span className={className} suppressHydrationWarning />;
     }
 
-    const time = now.toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit',
-        ...(showSeconds && { second: '2-digit' })
-    });
-
-    const date = now.toLocaleDateString([], {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short'
-    });
+    const time = formatClockTime(now, { withSeconds: showSeconds });
+    const date = formatWeekdayDate(now);
 
     return (
         <span className={className} suppressHydrationWarning>

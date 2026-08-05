@@ -1,5 +1,7 @@
 // Shared display helpers for the Orders and KDS screens.
 
+import { formatClockTime, formatDayMonth } from './timeFormat';
+
 // Prefer the human-readable order_number; fall back to the UUID's head
 export const getOrderNumber = (order) =>
     order.order_number || order.id.slice(0, 6).toUpperCase();
@@ -7,7 +9,7 @@ export const getOrderNumber = (order) =>
 // "Today, 8:34 PM" for the current shift; dated otherwise
 export const formatOrderDate = (createdAt) => {
     const date = new Date(createdAt);
-    const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const time = formatClockTime(date);
 
     const today = new Date();
     const yesterday = new Date(today);
@@ -17,7 +19,7 @@ export const formatOrderDate = (createdAt) => {
     if (sameDay(date, today)) return `Today, ${time}`;
     if (sameDay(date, yesterday)) return `Yesterday, ${time}`;
 
-    return `${date.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${time}`;
+    return `${formatDayMonth(date)}, ${time}`;
 };
 
 // name -> image lookup, so orders whose line items predate the stored

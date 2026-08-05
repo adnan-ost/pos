@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { formatDateTime } from '@/lib/timeFormat'
 import { getDashboardStats } from './actions'
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -102,7 +103,7 @@ export default function ReportsPage() {
                     <h1 className="text-2xl font-bold">Flames by the Indus — Analytics Report</h1>
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
-                    Period: {periodLabel} · Generated {new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                    Period: {periodLabel} · Generated {formatDateTime(new Date())}
                 </p>
             </div>
 

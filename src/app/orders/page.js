@@ -1,7 +1,13 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+    startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
+    startOfMonth, endOfMonth, subMonths, parseISO, isValid
+} from 'date-fns';
 import styles from './orders.module.css';
-import { getOrders, updateOrderStatus, getMenuItems } from '@/lib/supabaseDb';
+import {
+    getOrdersPage, getUnpaidOrdersCount, updateOrderStatus, getMenuItems, ORDERS_PAGE_SIZES
+} from '@/lib/supabaseDb';
 import { createClient } from '@/lib/supabase/client';
 import {
     getOrderNumber, formatOrderDate, buildImageMap, resolveItemImage, formatModifiers
@@ -9,7 +15,8 @@ import {
 import LiveClock from '@/components/Layout/LiveClock';
 import {
     UtensilsCrossed, ArrowRight, LayoutGrid, List, UserRound, Armchair,
-    ShoppingBag, Bike, Loader2, ClipboardList, Layers, Wallet
+    ShoppingBag, Bike, Loader2, ClipboardList, Layers, Wallet,
+    ChevronLeft, ChevronRight, CalendarRange, ArrowUpDown, RotateCcw
 } from 'lucide-react';
 
 const ORDER_TYPE = {
@@ -38,18 +45,132 @@ const FILTER_LABEL = { all: 'All', unpaid: 'Unpaid' };
 
 const isOpenTab = (order) => order.payment_status === 'unpaid';
 
+const PERIODS = [
+    { key: 'all', label: 'All time' },
+    { key: 'today', label: 'Today' },
+    { key: 'yesterday', label: 'Yesterday' },
+    { key: 'week', label: 'This week' },
+    { key: 'month', label: 'This month' },
+    { key: 'lastMonth', label: 'Last month' },
+    { key: 'custom', label: 'Custom range' },
+];
+
+const SORTS = [
+    { key: 'newest', label: 'Newest first' },
+    { key: 'oldest', label: 'Oldest first' },
+    { key: 'highest', label: 'Highest total' },
+    { key: 'lowest', label: 'Lowest total' },
+];
+
+const TYPES = [
+    { key: 'all', label: 'All types' },
+    { key: 'dine-in', label: 'Dine-in' },
+    { key: 'takeaway', label: 'Takeaway' },
+    { key: 'delivery', label: 'Delivery' },
+];
+
+/*
+ * Turns a period choice into the timestamp bounds the query needs.
+ *
+ * Boundaries are the operator's local day, not UTC: "Today" has to mean the
+ * shift they are standing in. created_at is a timestamptz, so converting local
+ * day edges to ISO lines the comparison up correctly on the server.
+ */
+const resolvePeriod = (period, customFrom, customTo) => {
+    const now = new Date();
+
+    switch (period) {
+        case 'today':
+            return { from: startOfDay(now), to: endOfDay(now) };
+        case 'yesterday': {
+            const day = subDays(now, 1);
+            return { from: startOfDay(day), to: endOfDay(day) };
+        }
+        case 'week':
+            // Monday start: a restaurant week is read Mon-Sun, not Sun-Sat.
+            return { from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) };
+        case 'month':
+            return { from: startOfMonth(now), to: endOfMonth(now) };
+        case 'lastMonth': {
+            const prev = subMonths(now, 1);
+            return { from: startOfMonth(prev), to: endOfMonth(prev) };
+        }
+        case 'custom': {
+            const start = customFrom ? parseISO(customFrom) : null;
+            const end = customTo ? parseISO(customTo) : null;
+            return {
+                from: start && isValid(start) ? startOfDay(start) : null,
+                // A single date means that whole day rather than an empty window.
+                to: end && isValid(end) ? endOfDay(end) : (start && isValid(start) ? endOfDay(start) : null),
+            };
+        }
+        default:
+            return { from: null, to: null };
+    }
+};
+
 export default function OrdersPage() {
     const [orders, setOrders] = useState([]);
-    const [activeTab, setActiveTab] = useState('all');
+    const [total, setTotal] = useState(0);
+    const [unpaidCount, setUnpaidCount] = useState(0);
     const [itemImages, setItemImages] = useState({});
     const [view, setView] = useState('grid');
     const [isLoading, setIsLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(false);
+
+    // Filters
+    const [activeTab, setActiveTab] = useState('all');
+    const [orderType, setOrderType] = useState('all');
+    const [sort, setSort] = useState('newest');
+    const [period, setPeriod] = useState('all');
+    const [customFrom, setCustomFrom] = useState('');
+    const [customTo, setCustomTo] = useState('');
+
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(ORDERS_PAGE_SIZES[0]);
+
+    const { from, to } = resolvePeriod(period, customFrom, customTo);
+    const fromISO = from ? from.toISOString() : null;
+    const toISO = to ? to.toISOString() : null;
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    const load = useCallback(async () => {
+        setIsFetching(true);
+        try {
+            const [{ rows, total: count }, unpaid] = await Promise.all([
+                getOrdersPage({ page, pageSize, status: activeTab, orderType, from: fromISO, to: toISO, sort }),
+                getUnpaidOrdersCount(),
+            ]);
+            setOrders(rows);
+            setTotal(count);
+            setUnpaidCount(unpaid);
+        } catch (error) {
+            console.error('Failed to load orders', error);
+        } finally {
+            setIsLoading(false);
+            setIsFetching(false);
+        }
+    }, [page, pageSize, activeTab, orderType, fromISO, toISO, sort]);
+
+    // Refetch whenever the query changes — filters, sort, or page.
+    useEffect(() => {
+        load();
+    }, [load]);
+
+    /*
+     * The subscription must outlive filter changes: re-running it on every
+     * dropdown touch would tear down and rebuild the socket. It reads the
+     * loader through a ref so it always refetches the query currently on
+     * screen rather than the one that existed when it subscribed.
+     */
+    const loadRef = useRef(load);
+    useEffect(() => {
+        loadRef.current = load;
+    }, [load]);
 
     useEffect(() => {
         getMenuItems().then(items => setItemImages(buildImageMap(items)));
-
-        // Load orders on mount
-        loadOrders();
 
         // Restore the operator's last view choice
         const saved = localStorage.getItem('orders:view');
@@ -61,8 +182,8 @@ export default function OrdersPage() {
         const supabase = createClient();
         const subscription = supabase
             .channel('orders_channel')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
-                loadOrders();
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+                loadRef.current?.();
             })
             .subscribe();
 
@@ -71,29 +192,36 @@ export default function OrdersPage() {
         };
     }, []);
 
-    const loadOrders = async () => {
-        try {
-            const data = await getOrders();
-            setOrders(data);
-        } catch (error) {
-            console.error("Failed to load orders", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    // A page that no longer exists (filters narrowed the result set) would
+    // otherwise render as empty rather than as the last page of results.
+    useEffect(() => {
+        if (page > totalPages) setPage(totalPages);
+    }, [page, totalPages]);
 
     const changeView = (next) => {
         setView(next);
         localStorage.setItem('orders:view', next);
     };
 
-    const filteredOrders = orders.filter(order => {
-        if (activeTab === 'all') return true;
-        // "Unpaid" cuts across the kitchen flow: an open tab can be at any
-        // stage, including served, and still owe money
-        if (activeTab === 'unpaid') return isOpenTab(order) && order.status !== 'cancelled';
-        return order.status === activeTab;
-    });
+    // Any filter change invalidates the current page number: staying on page 4
+    // of a result set that now has two pages shows nothing.
+    const applyFilter = (setter) => (value) => {
+        setter(value);
+        setPage(1);
+    };
+
+    const resetFilters = () => {
+        setActiveTab('all');
+        setOrderType('all');
+        setSort('newest');
+        setPeriod('all');
+        setCustomFrom('');
+        setCustomTo('');
+        setPage(1);
+    };
+
+    const filtersActive =
+        activeTab !== 'all' || orderType !== 'all' || sort !== 'newest' || period !== 'all';
 
     const handleStatusUpdate = async (orderId, currentStatus) => {
         const flow = ['new', 'preparing', 'ready', 'completed'];
@@ -103,7 +231,7 @@ export default function OrdersPage() {
             try {
                 await updateOrderStatus(orderId, nextStatus);
                 // State will auto-update via subscription, but for instant feedback:
-                loadOrders();
+                load();
             } catch (error) {
                 console.error("Failed to update status", error);
             }
@@ -112,7 +240,8 @@ export default function OrdersPage() {
 
     const getStatusLabel = (status) => STATUS_LABEL[status] || status;
 
-    const unpaidCount = orders.filter(o => isOpenTab(o) && o.status !== 'cancelled').length;
+    const firstRow = total === 0 ? 0 : (page - 1) * pageSize + 1;
+    const lastRow = Math.min(page * pageSize, total);
 
     // Rounds and payment state — an open tab reads differently to a paid order
     const PaymentChips = ({ order }) => {
@@ -203,7 +332,7 @@ export default function OrdersPage() {
                             <button
                                 key={tab}
                                 className={`${styles.filterTab} ${activeTab === tab ? styles.active : ''}`}
-                                onClick={() => setActiveTab(tab)}
+                                onClick={() => applyFilter(setActiveTab)(tab)}
                             >
                                 {FILTER_LABEL[tab] || tab.charAt(0).toUpperCase() + tab.slice(1)}
                                 {tab === 'unpaid' && unpaidCount > 0 && (
@@ -230,20 +359,108 @@ export default function OrdersPage() {
                 </div>
             </div>
 
+            {/* ===== Period / type / sort ===== */}
+            <div className={styles.toolbar}>
+                <label className={styles.control}>
+                    <CalendarRange size={14} aria-hidden="true" />
+                    <select
+                        className={styles.select}
+                        value={period}
+                        onChange={(e) => applyFilter(setPeriod)(e.target.value)}
+                        aria-label="Period"
+                    >
+                        {PERIODS.map(p => (
+                            <option key={p.key} value={p.key}>{p.label}</option>
+                        ))}
+                    </select>
+                </label>
+
+                {period === 'custom' && (
+                    <div className={styles.dateRange}>
+                        <input
+                            type="date"
+                            className={styles.dateInput}
+                            value={customFrom}
+                            max={customTo || undefined}
+                            onChange={(e) => applyFilter(setCustomFrom)(e.target.value)}
+                            aria-label="From date"
+                        />
+                        <span className={styles.dateSep}>to</span>
+                        <input
+                            type="date"
+                            className={styles.dateInput}
+                            value={customTo}
+                            min={customFrom || undefined}
+                            onChange={(e) => applyFilter(setCustomTo)(e.target.value)}
+                            aria-label="To date"
+                        />
+                    </div>
+                )}
+
+                <label className={styles.control}>
+                    <select
+                        className={styles.select}
+                        value={orderType}
+                        onChange={(e) => applyFilter(setOrderType)(e.target.value)}
+                        aria-label="Order type"
+                    >
+                        {TYPES.map(t => (
+                            <option key={t.key} value={t.key}>{t.label}</option>
+                        ))}
+                    </select>
+                </label>
+
+                <label className={styles.control}>
+                    <ArrowUpDown size={14} aria-hidden="true" />
+                    <select
+                        className={styles.select}
+                        value={sort}
+                        onChange={(e) => applyFilter(setSort)(e.target.value)}
+                        aria-label="Sort order"
+                    >
+                        {SORTS.map(s => (
+                            <option key={s.key} value={s.key}>{s.label}</option>
+                        ))}
+                    </select>
+                </label>
+
+                {filtersActive && (
+                    <button type="button" className={styles.resetBtn} onClick={resetFilters}>
+                        <RotateCcw size={13} aria-hidden="true" />
+                        Reset
+                    </button>
+                )}
+
+                <div className={styles.resultCount}>
+                    {isFetching && !isLoading && <Loader2 className={styles.inlineSpinner} size={13} />}
+                    {total === 0 ? 'No orders' : `${firstRow}–${lastRow} of ${total}`}
+                </div>
+            </div>
+
             {isLoading ? (
                 <div className={styles.stateBlock}>
                     <Loader2 className={styles.spinner} size={32} />
                     <p>Loading orders…</p>
                 </div>
-            ) : filteredOrders.length === 0 ? (
+            ) : orders.length === 0 ? (
                 <div className={styles.stateBlock}>
                     <ClipboardList size={32} />
-                    <p>No orders in this category.</p>
+                    <p>
+                        {filtersActive
+                            ? 'No orders match these filters.'
+                            : 'No orders yet.'}
+                    </p>
+                    {filtersActive && (
+                        <button type="button" className={styles.resetBtn} onClick={resetFilters}>
+                            <RotateCcw size={13} aria-hidden="true" />
+                            Clear filters
+                        </button>
+                    )}
                 </div>
             ) : view === 'grid' ? (
                 /* ===== GRID ===== */
-                <div className={styles.ordersGrid}>
-                    {filteredOrders.map(order => (
+                <div className={`${styles.ordersGrid} ${isFetching ? styles.stale : ''}`}>
+                    {orders.map(order => (
                         <div key={order.id} className={styles.orderCard}>
                             <div className={styles.cardHeader}>
                                 <div>
@@ -290,7 +507,7 @@ export default function OrdersPage() {
                 </div>
             ) : (
                 /* ===== LIST ===== */
-                <div className={styles.listWrap}>
+                <div className={`${styles.listWrap} ${isFetching ? styles.stale : ''}`}>
                     <table className={styles.table}>
                         <thead>
                             <tr>
@@ -305,7 +522,7 @@ export default function OrdersPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredOrders.map(order => {
+                            {orders.map(order => {
                                 const type = ORDER_TYPE[order.order_type];
                                 return (
                                     <tr key={order.id}>
@@ -360,6 +577,52 @@ export default function OrdersPage() {
                             })}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Hidden on a single page of results: a pager that can't page is noise */}
+            {!isLoading && totalPages > 1 && (
+                <div className={styles.pager}>
+                    <label className={styles.control}>
+                        <select
+                            className={styles.select}
+                            value={pageSize}
+                            onChange={(e) => applyFilter(setPageSize)(Number(e.target.value))}
+                            aria-label="Orders per page"
+                        >
+                            {ORDERS_PAGE_SIZES.map(size => (
+                                <option key={size} value={size}>{size} per page</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <div className={styles.pagerNav}>
+                        <button
+                            type="button"
+                            className={styles.pagerBtn}
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page <= 1 || isFetching}
+                            aria-label="Previous page"
+                        >
+                            <ChevronLeft size={16} />
+                            Prev
+                        </button>
+
+                        <span className={styles.pagerInfo}>
+                            Page {page} of {totalPages}
+                        </span>
+
+                        <button
+                            type="button"
+                            className={styles.pagerBtn}
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page >= totalPages || isFetching}
+                            aria-label="Next page"
+                        >
+                            Next
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
