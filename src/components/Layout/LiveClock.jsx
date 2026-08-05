@@ -12,6 +12,11 @@ export default function LiveClock({ showDate = true, showSeconds = false, classN
     const [now, setNow] = useState(null);
 
     useEffect(() => {
+        // Seeding on mount is the whole point of `now` starting null: the server
+        // can't know the till's timezone, so it renders the placeholder below and
+        // the real time appears on the client. Waiting for the first interval tick
+        // instead would leave the clock blank for a second on every page.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setNow(new Date());
         const timer = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(timer);

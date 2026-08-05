@@ -357,6 +357,9 @@ export default function POSPage() {
             {/* Modals */}
             {modifyingItem && (
                 <ModifierModal
+                    /* Keyed by item so picking a different dish remounts with that
+                       dish's defaults rather than inheriting the last one's. */
+                    key={modifyingItem.id}
                     item={modifyingItem}
                     modifiersData={menuData.modifiers}
                     onClose={() => setModifyingItem(null)}

@@ -42,6 +42,11 @@ export default function ReportsPage() {
     const printRef = useRef(null)
 
     useEffect(() => {
+        // Deliberate: this effect re-runs whenever the date range changes, and the
+        // spinner has to come back while the new range is fetched. Without it the
+        // screen keeps showing the previous range's figures as though they were
+        // the answer to the range just picked.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLoading(true)
         // If custom date range is set, use it
         if (fromDate) {
@@ -106,7 +111,7 @@ export default function ReportsPage() {
                 <div className="min-w-0">
                     <h1 className="text-2xl sm:text-3xl font-bold text-white whitespace-nowrap">Analytics Dashboard</h1>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-gray-400 text-sm sm:text-base">
-                        <span>Overview of your store's performance</span>
+                        <span>Overview of your store&apos;s performance</span>
                         <span className="hidden sm:inline text-gray-700">·</span>
                         <LiveClock className="hidden sm:inline-flex items-center gap-1.5 text-gray-400 text-sm font-medium" showSeconds={false} iconSize={14} />
                     </div>

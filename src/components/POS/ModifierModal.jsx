@@ -1,32 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import styles from './ModifierModal.module.css';
 
+// Default to the largest/last variant — the biggest portion is what gets
+// ordered most, so it saves a tap at the busiest moment.
+const defaultVariant = (item) =>
+    item?.variants?.length ? item.variants[item.variants.length - 1] : null;
+
+const defaultSelections = (item, modifiersData) => {
+    const initial = {};
+    if (!item?.modifiers) return initial;
+
+    item.modifiers.forEach(modId => {
+        const mod = modifiersData?.[modId];
+        if (mod && mod.type === 'select') {
+            initial[modId] = mod.options[1]; // Default to second option (usually Medium)
+        } else if (mod && mod.type === 'multiselect') {
+            initial[modId] = [];
+        }
+    });
+    return initial;
+};
+
+/*
+ * Defaults are computed during the first render rather than assigned by an
+ * effect afterwards. Doing it in an effect meant the modal painted once with
+ * the wrong selections — nothing on a first open, the previous item's on a
+ * later one — and only corrected on the following render, which on a busy pass
+ * is long enough to tap.
+ *
+ * This relies on the POS keying the modal by item id, so switching items
+ * remounts with fresh defaults instead of carrying the old ones over.
+ */
 const ModifierModal = ({ item, modifiersData, onClose, onConfirm }) => {
-    const [selectedVariant, setSelectedVariant] = useState(null);
-    const [selections, setSelections] = useState({});
-
-    // Initialize defaults
-    useEffect(() => {
-        if (item.variants && item.variants.length > 0) {
-            setSelectedVariant(item.variants[item.variants.length - 1]); // Default to largest/last
-        } else {
-            setSelectedVariant(null);
-        }
-
-        // Reset modifiers
-        const initialSelections = {};
-        if (item.modifiers) {
-            item.modifiers.forEach(modId => {
-                const mod = modifiersData[modId];
-                if (mod && mod.type === 'select') {
-                    initialSelections[modId] = mod.options[1]; // Default to second option (usually Medium)
-                } else if (mod && mod.type === 'multiselect') {
-                    initialSelections[modId] = [];
-                }
-            });
-        }
-        setSelections(initialSelections);
-    }, [item, modifiersData]);
+    const [selectedVariant, setSelectedVariant] = useState(() => defaultVariant(item));
+    const [selections, setSelections] = useState(() => defaultSelections(item, modifiersData));
 
     if (!item) return null;
 
