@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import styles from './kds.module.css';
 import { getOrders, updateOrderStatus, getMenuItems } from '@/lib/supabaseDb';
@@ -43,38 +43,49 @@ export default function KDSPage() {
     const [soundOn, setSoundOn] = useState(true);
     const knownIds = useRef(null);
 
+    /*
+     * Declared above the effects that use them, and deliberately identity-stable:
+     * the subscription effect below must mount exactly once for the whole
+     * service, so anything it closes over has to keep the same identity across
+     * renders or the board would tear down and rebuild its socket on every tick.
+     *
+     * That stability is why the mute setting is read through a ref rather than
+     * straight off state — a plain `soundOn` read here would freeze at its
+     * initial value for the life of the board.
+     */
+    const soundOnRef = useRef(soundOn);
     useEffect(() => {
-        getMenuItems().then(items => setImageMap(buildImageMap(items)));
-        loadOrders();
+        // Synced in an effect, not assigned during render: a render-phase ref
+        // write is discarded work if React re-renders without committing.
+        soundOnRef.current = soundOn;
+    }, [soundOn]);
 
-        // Session-aware client: once `orders` moves to authenticated-only
-        // RLS, an anon-key subscription would silently receive nothing.
-        const supabase = createClient();
-        const subscription = supabase
-            .channel('kds_channel')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                loadOrders();
-            })
-            .subscribe();
-
-        // Safety net: this board runs unattended for a whole service, and a
-        // dropped socket would silently stop new tickets from appearing.
-        const poll = setInterval(loadOrders, 15000);
-
-        return () => {
-            subscription.unsubscribe();
-            clearInterval(poll);
-        };
+    // Short two-tone beep via Web Audio, so no asset is needed
+    const chime = useCallback(() => {
+        if (!soundOnRef.current) return;
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            [880, 1320].forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = freq;
+                osc.type = 'sine';
+                const start = ctx.currentTime + i * 0.18;
+                gain.gain.setValueAtTime(0.0001, start);
+                gain.gain.exponentialRampToValueAtTime(0.3, start + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+                osc.start(start);
+                osc.stop(start + 0.18);
+            });
+            setTimeout(() => ctx.close(), 800);
+        } catch {
+            // Audio is a nicety; never let it break the board
+        }
     }, []);
 
-    // Ticket age drives the colour coding, so keep a ticking clock
-    useEffect(() => {
-        setNow(Date.now());
-        const timer = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(timer);
-    }, []);
-
-    const loadOrders = async () => {
+    const loadOrders = useCallback(async () => {
         try {
             const data = await getOrders();
             const active = data.filter(o => LANES.some(l => l.key === o.status));
@@ -102,35 +113,45 @@ export default function KDSPage() {
         } catch (error) {
             console.error('Failed to load KDS orders', error);
         }
-    };
+    }, [chime]);
 
-    // Short two-tone beep via Web Audio, so no asset is needed
-    const soundOnRef = useRef(soundOn);
-    soundOnRef.current = soundOn;
+    useEffect(() => {
+        getMenuItems().then(items => setImageMap(buildImageMap(items)));
+        // loadOrders is async and awaits a fetch before it touches state, so
+        // nothing is set synchronously here — the rule can't see past the call.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadOrders();
 
-    const chime = () => {
-        if (!soundOnRef.current) return;
-        try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            [880, 1320].forEach((freq, i) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.frequency.value = freq;
-                osc.type = 'sine';
-                const start = ctx.currentTime + i * 0.18;
-                gain.gain.setValueAtTime(0.0001, start);
-                gain.gain.exponentialRampToValueAtTime(0.3, start + 0.02);
-                gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
-                osc.start(start);
-                osc.stop(start + 0.18);
-            });
-            setTimeout(() => ctx.close(), 800);
-        } catch {
-            // Audio is a nicety; never let it break the board
-        }
-    };
+        // Session-aware client: once `orders` moves to authenticated-only
+        // RLS, an anon-key subscription would silently receive nothing.
+        const supabase = createClient();
+        const subscription = supabase
+            .channel('kds_channel')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+                loadOrders();
+            })
+            .subscribe();
+
+        // Safety net: this board runs unattended for a whole service, and a
+        // dropped socket would silently stop new tickets from appearing.
+        const poll = setInterval(loadOrders, 15000);
+
+        return () => {
+            subscription.unsubscribe();
+            clearInterval(poll);
+        };
+    }, [loadOrders]);
+
+    // Ticket age drives the colour coding, so keep a ticking clock
+    useEffect(() => {
+        // `now` starts null so server and client render the same markup; seeding
+        // it on mount is the point. Dropping this would show every ticket as
+        // "--:--" for a second on a board the kitchen reads at a glance.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setNow(Date.now());
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     const handleBump = async (order, nextStatus) => {
         // Optimistic: the board must feel instant under a busy pass
