@@ -1,25 +1,52 @@
 
 import { crc16ccitt } from 'crc';
 
-function pad(number) {
-    return number < 10 ? '00' + number : number < 100 ? '0' + number : number;
-}
-
+/*
+ * EMVCo length prefixes are exactly two digits. The previous implementation
+ * emitted three for anything under 100 ("002" for a length of 2), which made
+ * every single field in the payload malformed — the string opened "0000201"
+ * where a reader expects "000201", so no parser could get past the first tag.
+ * The QR scanned as text and no bank app recognised it as a payment code.
+ */
 function formatTLV(tag, value) {
     const stringValue = String(value);
-    const length = pad(stringValue.length);
-    return tag + length + stringValue;
+
+    if (stringValue.length > 99) {
+        // Two digits cannot express it, and a truncated identifier would encode
+        // somebody else's account. Refuse rather than emit a plausible payload.
+        throw new Error(`EMVCo field ${tag} is ${stringValue.length} chars; max is 99`);
+    }
+
+    return tag + String(stringValue.length).padStart(2, '0') + stringValue;
 }
+
+/*
+ * Two values here decide whether a bank app treats this as a payment code or as
+ * meaningless text, and neither can be guessed — both are issued by the
+ * acquiring bank or PSP when a merchant is onboarded:
+ *
+ *   merchantAccountGuid  the scheme identifier a wallet matches to know which
+ *                        rail the account id belongs to. The '000000' default
+ *                        below matches no scheme, so payloads built with it are
+ *                        structurally valid and still unpayable.
+ *   merchantCategoryCode ISO 18245 trade code ('5812' is restaurants). '0000'
+ *                        means unspecified and some acquirers reject it.
+ *
+ * Until the bank supplies them, this produces a well-formed QR that no app will
+ * act on. That is a provisioning gap, not something the code can close.
+ */
+export const PLACEHOLDER_GUID = '000000';
 
 export function generateEMVCoPayload({
     raastId,
-    jazzCashId,
     amount,
     currency = '586', // PKR
     country = 'PK',
     merchantName,
     merchantCity,
-    invoiceNo
+    invoiceNo,
+    merchantAccountGuid = PLACEHOLDER_GUID,
+    merchantCategoryCode = '0000'
 }) {
     let payload = '';
 
@@ -29,25 +56,17 @@ export function generateEMVCoPayload({
     // 01: Point of Initiation Method (12 = Dynamic)
     payload += formatTLV('01', '12');
 
-    // Merchant Account Information
-    // Allocation for Pakistan (Raast is typically under 26-51 reserved range or specific ID)
-    // For simplicity, we'll use a common ID slot or designated one if known.
-    // Standard Raast integration often uses '00' within the slot for GUID and '01' for the ID.
-    // However, without specific bank spec, we will treat Raast as a generic merchant ID for now suitable for widely used apps.
-    // Let's use ID '26' for Raast/Generic.
-
-    // 26: Merchant Account Information
-    // Using '000000' as a generic placeholder often works better for interoperability 
-    // when a specific bank GUID isn't strictly enforced or known.
+    // 26: Merchant Account Information — a nested template holding the scheme
+    // identifier (00) and the account id it applies to (01). Tags 26-51 are the
+    // slots reserved for payment schemes; which one to use is part of the spec
+    // the acquirer hands over.
     if (raastId) {
-        // Tag 00: Globally Unique Identifier (GUID)
-        // Tag 01: Merchant Account ID
-        const raastPayload = formatTLV('00', '000000') + formatTLV('01', raastId);
+        const raastPayload = formatTLV('00', merchantAccountGuid) + formatTLV('01', raastId);
         payload += formatTLV('26', raastPayload);
     }
 
-    // Merchant Category Code (52) - 0000 = Unspecified
-    payload += formatTLV('52', '0000');
+    // Merchant Category Code (52)
+    payload += formatTLV('52', merchantCategoryCode);
 
     // Transaction Currency (53) - PKR = 586
     payload += formatTLV('53', currency);

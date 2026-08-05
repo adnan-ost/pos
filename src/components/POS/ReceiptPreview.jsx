@@ -26,13 +26,25 @@ const ReceiptPreview = ({
     // when absent so a database without the column behaves as it did before.
     const qrAllowed = settings?.qr_enabled !== false && Boolean(settings?.raast_id);
 
-    const qrPayload = qrAllowed ? generateEMVCoPayload({
-        raastId: settings.raast_id,
-        amount: totals.total,
-        merchantName: settings.merchant_name,
-        merchantCity: settings.merchant_city,
-        invoiceNo: invoiceNo
-    }) : null;
+    // Built inside a try because the encoder rejects values it cannot express in
+    // a two-digit length rather than silently truncating an account id. This runs
+    // during render, so an unguarded throw would take the whole receipt down —
+    // and a receipt that won't open means a bill that can't be settled. A
+    // missing QR is recoverable at the till; a blank screen is not.
+    let qrPayload = null;
+    if (qrAllowed) {
+        try {
+            qrPayload = generateEMVCoPayload({
+                raastId: settings.raast_id,
+                amount: totals.total,
+                merchantName: settings.merchant_name,
+                merchantCity: settings.merchant_city,
+                invoiceNo: invoiceNo
+            });
+        } catch (error) {
+            console.error('Could not build payment QR payload', error);
+        }
+    }
 
     return (
         <div className={styles.overlay}>

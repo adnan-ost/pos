@@ -112,7 +112,7 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                <div className="mb-6 flex items-start gap-4 p-4 rounded-lg bg-gray-800/40 border border-gray-700/50">
+                <div className="mb-6 flex items-center gap-4 p-4 rounded-lg bg-gray-800/40 border border-gray-700/50">
                     <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-200">Print payment QR on receipts</p>
                         <p className="mt-0.5 text-xs text-gray-400">
@@ -129,8 +129,11 @@ export default function SettingsPage() {
                         className={`relative flex-shrink-0 h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/40 ${settings.qr_enabled ? 'bg-orange-600' : 'bg-gray-600'
                             }`}
                     >
+                        {/* Geometry stated outright rather than left to the knob's
+                            static position: inset 2px on both sides of a 44px track
+                            holding a 20px knob leaves exactly 20px of travel. */}
                         <span
-                            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${settings.qr_enabled ? 'translate-x-[1.375rem]' : 'translate-x-0.5'
+                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${settings.qr_enabled ? 'translate-x-5' : 'translate-x-0'
                                 }`}
                         />
                     </button>
@@ -219,6 +222,9 @@ export default function SettingsPage() {
                                     onChange={handleChange}
                                     autoComplete="off"
                                     spellCheck={false}
+                                    // Comfortably past the 24 of a Pakistani IBAN, and far
+                                    // short of the length the QR encoder has to reject.
+                                    maxLength={50}
                                     className={`${fieldClass} font-mono tracking-wide`}
                                     placeholder="03475369008"
                                 />
