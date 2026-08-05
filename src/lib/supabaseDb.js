@@ -338,3 +338,44 @@ export const getFullMenuData = async () => {
         modifiers
     };
 };
+
+// ==================== IMAGE UPLOAD ====================
+export const MENU_IMAGE_BUCKET = 'menu-images';
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/*
+ * Uploads a menu photo and returns its public URL, so the caller can store it
+ * in menu_items.image exactly as if it had been pasted in by hand.
+ *
+ * Checks size and type here rather than trusting the file picker's accept
+ * filter, which is a hint the OS is free to ignore. Names are random: staff
+ * upload things like "IMG_0042.jpg" and "photo.jpg", and the original name
+ * would collide or leak nothing useful.
+ */
+export const uploadMenuImage = async (file) => {
+    if (!file.type.startsWith('image/')) {
+        throw new Error('That file is not an image');
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+        throw new Error(`Image must be under ${MAX_IMAGE_BYTES / 1024 / 1024}MB`);
+    }
+
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `${crypto.randomUUID()}.${ext || 'jpg'}`;
+
+    const { error } = await supabase.storage
+        .from(MENU_IMAGE_BUCKET)
+        .upload(path, file, { cacheControl: '31536000', upsert: false });
+
+    if (error) {
+        // A missing bucket is the one failure worth naming outright — it's a
+        // setup step, not something retrying will fix.
+        if (/bucket not found/i.test(error.message)) {
+            throw new Error(`Storage bucket "${MENU_IMAGE_BUCKET}" is missing. Create it in Supabase first.`);
+        }
+        throw error;
+    }
+
+    const { data } = supabase.storage.from(MENU_IMAGE_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+};

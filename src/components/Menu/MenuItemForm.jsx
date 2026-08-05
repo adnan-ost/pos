@@ -1,15 +1,19 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import styles from './MenuItemForm.module.css';
-import { addMenuItem, updateMenuItem } from '@/lib/supabaseDb';
-import { X, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
+import { addMenuItem, updateMenuItem, uploadMenuImage } from '@/lib/supabaseDb';
+import CategorySelect from './CategorySelect';
+import { X, Plus, Trash2, Image as ImageIcon, Upload, Loader2, Link2 } from 'lucide-react';
 
 export default function MenuItemForm({ item, categories, modifiers, onClose }) {
     const isEditing = !!item;
 
     const [formData, setFormData] = useState({
         name: '',
-        category_id: categories[0]?.id || '',
+        // Left empty on purpose: defaulting to the first category meant a new
+        // item could be saved into a category nobody actually picked, and
+        // validation couldn't catch it because the field was already filled.
+        category_id: '',
         price: '',
         unit: '',
         description: '',
@@ -21,13 +25,39 @@ export default function MenuItemForm({ item, categories, modifiers, onClose }) {
     const [errors, setErrors] = useState({});
     const [imagePreviewError, setImagePreviewError] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef(null);
+
+    // Upload writes the resulting public URL straight into the same `image`
+    // field the URL box edits, so both routes end up in one place and the
+    // preview logic below doesn't need to know which was used.
+    const handleFileSelect = async (e) => {
+        const file = e.target.files?.[0];
+        // Reset immediately so picking the same file twice still fires onChange.
+        e.target.value = '';
+        if (!file) return;
+
+        setIsUploading(true);
+        setErrors(prev => ({ ...prev, image: '' }));
+
+        try {
+            const url = await uploadMenuImage(file);
+            setFormData(prev => ({ ...prev, image: url }));
+            setImagePreviewError(false);
+        } catch (error) {
+            console.error('Image upload failed:', error);
+            setErrors(prev => ({ ...prev, image: error.message || 'Upload failed' }));
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     // Initialize form with item data when editing
     useEffect(() => {
         if (item) {
             setFormData({
                 name: item.name || '',
-                category_id: item.category_id || categories[0]?.id || '',
+                category_id: item.category_id || '',
                 price: item.price?.toString() || '',
                 unit: item.unit || '',
                 description: item.description || '',
@@ -119,7 +149,8 @@ export default function MenuItemForm({ item, categories, modifiers, onClose }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!validate() || isSubmitting) return;
+        // Submitting mid-upload would save the item without the photo.
+        if (!validate() || isSubmitting || isUploading) return;
 
         setIsSubmitting(true);
 
@@ -185,18 +216,17 @@ export default function MenuItemForm({ item, categories, modifiers, onClose }) {
 
                             {/* Category */}
                             <div className={styles.formGroup}>
-                                <label>Category *</label>
-                                <select
-                                    name="category_id"
+                                <label htmlFor="category_id">Category *</label>
+                                <CategorySelect
+                                    id="category_id"
+                                    categories={categories}
                                     value={formData.category_id}
-                                    onChange={handleChange}
-                                    className={errors.category_id ? styles.inputError : ''}
-                                >
-                                    <option value="">Select category</option>
-                                    {categories.map(cat => (
-                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                    ))}
-                                </select>
+                                    hasError={Boolean(errors.category_id)}
+                                    onChange={(categoryId) => {
+                                        setFormData(prev => ({ ...prev, category_id: categoryId }));
+                                        setErrors(prev => ({ ...prev, category_id: '' }));
+                                    }}
+                                />
                                 {errors.category_id && <span className={styles.error}>{errors.category_id}</span>}
                             </div>
 
@@ -262,18 +292,75 @@ export default function MenuItemForm({ item, categories, modifiers, onClose }) {
 
                         {/* Right Column */}
                         <div className={styles.formColumn}>
-                            {/* Image URL */}
+                            {/* Image: upload a file or paste a URL */}
                             <div className={styles.formGroup}>
-                                <label>Image URL</label>
+                                <label htmlFor="image">Item Image</label>
+
+                                <div className={styles.imageSourceRow}>
+                                    <button
+                                        type="button"
+                                        className={styles.uploadBtn}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploading}
+                                    >
+                                        {isUploading ? (
+                                            <>
+                                                <Loader2 size={14} className={styles.spin} />
+                                                Uploading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload size={14} />
+                                                Upload photo
+                                            </>
+                                        )}
+                                    </button>
+                                    {formData.image && !isUploading && (
+                                        <button
+                                            type="button"
+                                            className={styles.clearImageBtn}
+                                            onClick={() => {
+                                                setFormData(prev => ({ ...prev, image: '' }));
+                                                setImagePreviewError(false);
+                                            }}
+                                        >
+                                            <Trash2 size={14} />
+                                            Remove
+                                        </button>
+                                    )}
+                                </div>
+
                                 <input
-                                    type="text"
-                                    name="image"
-                                    value={formData.image}
-                                    onChange={handleChange}
-                                    placeholder="https://..."
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,image/avif"
+                                    onChange={handleFileSelect}
+                                    className={styles.hiddenFileInput}
+                                    tabIndex={-1}
                                 />
+
+                                <div className={styles.urlInputWrap}>
+                                    <Link2 size={14} className={styles.urlIcon} />
+                                    <input
+                                        id="image"
+                                        type="text"
+                                        name="image"
+                                        value={formData.image}
+                                        onChange={handleChange}
+                                        placeholder="...or paste an image URL"
+                                        className={styles.urlInput}
+                                    />
+                                </div>
+
+                                {errors.image && <span className={styles.error}>{errors.image}</span>}
+
                                 <div className={styles.imagePreview}>
-                                    {formData.image && !imagePreviewError ? (
+                                    {isUploading ? (
+                                        <div className={styles.noImagePreview}>
+                                            <Loader2 size={32} className={styles.spin} />
+                                            <span>Uploading...</span>
+                                        </div>
+                                    ) : formData.image && !imagePreviewError ? (
                                         <img
                                             src={formData.image}
                                             alt="Preview"
@@ -303,7 +390,7 @@ export default function MenuItemForm({ item, categories, modifiers, onClose }) {
                                 </div>
                                 {formData.variants.length === 0 ? (
                                     <p className={styles.variantHint}>
-                                        Add variants like "Half" or "Large" with different prices
+                                        Add variants like &ldquo;Half&rdquo; or &ldquo;Large&rdquo; with different prices
                                     </p>
                                 ) : (
                                     <div className={styles.variantsList}>
@@ -347,8 +434,19 @@ export default function MenuItemForm({ item, categories, modifiers, onClose }) {
                         >
                             Cancel
                         </button>
-                        <button type="submit" className={styles.submitBtn}>
-                            {isEditing ? 'Save Changes' : 'Add Item'}
+                        <button
+                            type="submit"
+                            className={styles.submitBtn}
+                            disabled={isSubmitting || isUploading}
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 size={14} className={styles.spin} />
+                                    Saving...
+                                </>
+                            ) : (
+                                isEditing ? 'Save Changes' : 'Add Item'
+                            )}
                         </button>
                     </div>
                 </form>

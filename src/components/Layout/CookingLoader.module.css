@@ -1,0 +1,152 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+}
+
+/* Soft heat halo. Sits behind the flame and breathes on a slower cycle than the
+   flicker, so the two never look locked together. */
+.glow {
+    position: absolute;
+    inset: -18%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(242, 101, 19, 0.35) 0%, rgba(242, 101, 19, 0) 68%);
+    animation: glowPulse 2.6s ease-in-out infinite;
+}
+
+.flameSvg {
+    position: relative;
+    overflow: visible;
+    filter: drop-shadow(0 0 12px rgba(242, 101, 19, 0.45));
+}
+
+/* Anchored at the base: fire stretches and leans from where it's fed, it
+   doesn't scale about its middle. */
+.flame {
+    transform-origin: 50% 92%;
+    transform-box: fill-box;
+}
+
+.flameOuter {
+    animation: flicker 1.15s ease-in-out infinite;
+}
+
+.flameMid {
+    animation: flicker 0.85s ease-in-out infinite reverse;
+    animation-delay: 0.1s;
+}
+
+.flameCore {
+    animation: flickerCore 0.6s ease-in-out infinite;
+    animation-delay: 0.05s;
+}
+
+@keyframes flicker {
+    0%, 100% {
+        transform: scale(1, 1) skewX(0deg);
+        opacity: 1;
+    }
+    25% {
+        transform: scale(0.95, 1.06) skewX(-2.5deg);
+        opacity: 0.94;
+    }
+    50% {
+        transform: scale(1.04, 0.94) skewX(1.5deg);
+        opacity: 1;
+    }
+    75% {
+        transform: scale(0.97, 1.03) skewX(2deg);
+        opacity: 0.96;
+    }
+}
+
+@keyframes flickerCore {
+    0%, 100% {
+        transform: scale(1, 1);
+        opacity: 0.95;
+    }
+    50% {
+        transform: scale(1.1, 0.9);
+        opacity: 0.7;
+    }
+}
+
+@keyframes glowPulse {
+    0%, 100% { opacity: 0.75; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.08); }
+}
+
+.ember {
+    position: absolute;
+    bottom: 18%;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #fbbf24;
+    opacity: 0;
+    animation: rise 2.4s ease-out infinite;
+}
+
+.ember1 { left: 34%; animation-delay: 0s; }
+.ember2 { left: 52%; animation-delay: 0.7s; }
+.ember3 { left: 44%; animation-delay: 1.3s; }
+.ember4 { left: 60%; animation-delay: 1.9s; }
+
+@keyframes rise {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) scale(1);
+    }
+    15% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        /* Drifts sideways on the way up so the four don't read as a column. */
+        transform: translate(6px, -230%) scale(0.4);
+    }
+}
+
+.label {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--foreground, #f1f5f9);
+}
+
+.message {
+    font-size: 0.75rem;
+    color: var(--muted-foreground, #94a3b8);
+    animation: messageIn 0.4s ease-out;
+}
+
+@keyframes messageIn {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/*
+ * Reduced motion: the flame keeps its shape and heat but stops moving. The
+ * rotating messages still change, so there's proof of progress without any
+ * animation at all.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .glow,
+    .flameOuter,
+    .flameMid,
+    .flameCore,
+    .message {
+        animation: none;
+    }
+
+    .ember {
+        display: none;
+    }
+}
