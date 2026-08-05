@@ -136,17 +136,107 @@
     flex-shrink: 0;
 }
 
-.noMatch,
-.emptyNotice {
+.noMatch {
     padding: 0.75rem;
     font-size: 0.85rem;
     color: var(--muted-foreground);
+    line-height: 1.4;
 }
 
-.emptyNotice {
+/* ===== Inline category creation ===== */
+.createTrigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.7rem 0.75rem;
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--border);
+    color: var(--primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.createTrigger:hover {
+    background: rgba(242, 101, 19, 0.1);
+}
+
+.createPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-top: 1px solid var(--border);
+}
+
+.createInput {
+    width: 100%;
     background: var(--background);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    padding: 0.55rem 0.65rem;
+    font-size: 0.85rem;
+    font-family: inherit;
+    color: var(--foreground);
+    outline: none;
+}
+
+.createInput:focus {
+    border-color: var(--primary);
+}
+
+.createError {
+    font-size: 0.75rem;
+    color: var(--destructive);
+}
+
+.createActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.createCancel,
+.createSave {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: calc(var(--radius) - 2px);
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.createCancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted-foreground);
+}
+
+.createSave {
+    background: var(--primary);
+    border: 1px solid var(--primary);
+    color: var(--primary-foreground);
+}
+
+.createSave:disabled,
+.createCancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.spin {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {

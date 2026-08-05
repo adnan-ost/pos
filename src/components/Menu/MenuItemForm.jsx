@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import styles from './MenuItemForm.module.css';
-import { addMenuItem, updateMenuItem, uploadMenuImage } from '@/lib/supabaseDb';
+import { addMenuItem, updateMenuItem, uploadMenuImage, addCategory } from '@/lib/supabaseDb';
 import CategorySelect from './CategorySelect';
 import { X, Plus, Trash2, Image as ImageIcon, Upload, Loader2, Link2 } from 'lucide-react';
 
@@ -27,6 +27,21 @@ export default function MenuItemForm({ item, categories, modifiers, onClose }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef(null);
+
+    // Categories created from inside this form are held locally and merged over
+    // the prop: the parent page only refetches on close, and losing a
+    // just-created category mid-form would be worse than a briefly split list.
+    const [newCategories, setNewCategories] = useState([]);
+    const categoryList = useMemo(
+        () => [...categories, ...newCategories],
+        [categories, newCategories]
+    );
+
+    const handleCreateCategory = async (name) => {
+        const created = await addCategory({ name });
+        setNewCategories(prev => [...prev, created]);
+        return created;
+    };
 
     // Upload writes the resulting public URL straight into the same `image`
     // field the URL box edits, so both routes end up in one place and the
@@ -219,7 +234,8 @@ export default function MenuItemForm({ item, categories, modifiers, onClose }) {
                                 <label htmlFor="category_id">Category *</label>
                                 <CategorySelect
                                     id="category_id"
-                                    categories={categories}
+                                    categories={categoryList}
+                                    onCreate={handleCreateCategory}
                                     value={formData.category_id}
                                     hasError={Boolean(errors.category_id)}
                                     onChange={(categoryId) => {

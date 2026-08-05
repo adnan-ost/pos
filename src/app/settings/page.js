@@ -10,7 +10,7 @@ import { Save, Loader2, CreditCard, Building, MapPin, CheckCircle2, AlertTriangl
 const MAX_NAME = 25
 const MAX_CITY = 15
 
-const EMPTY = { merchant_name: '', merchant_city: '', raast_id: '' }
+const EMPTY = { merchant_name: '', merchant_city: '', raast_id: '', qr_enabled: true }
 
 export default function SettingsPage() {
     const [loading, setLoading] = useState(true)
@@ -22,6 +22,9 @@ export default function SettingsPage() {
     useEffect(() => {
         getSettings().then(data => {
             const next = { ...EMPTY, ...(data || {}) }
+            // Absent (migration not yet run) or null both mean "enabled", so the
+            // toggle can't render as off against a database that has no opinion.
+            next.qr_enabled = next.qr_enabled !== false
             setSettings(next)
             setSaved(next)
             setLoading(false)
@@ -37,14 +40,16 @@ export default function SettingsPage() {
 
     const isDirty = useMemo(
         () => ['merchant_name', 'merchant_city', 'raast_id']
-            .some(k => (settings[k] || '').trim() !== (saved[k] || '').trim()),
+            .some(k => (settings[k] || '').trim() !== (saved[k] || '').trim())
+            || settings.qr_enabled !== saved.qr_enabled,
         [settings, saved]
     )
 
-    // The receipt only renders a QR when raast_id is set, so an empty field
-    // silently disables QR payments. Say so rather than leaving it to be
-    // discovered at the till.
-    const qrReady = Boolean((settings.raast_id || '').trim())
+    // Two independent reasons a receipt might carry no QR: switched off, or no
+    // identifier to encode. Both are worth saying outright rather than leaving
+    // to be discovered at the till.
+    const hasRaastId = Boolean((settings.raast_id || '').trim())
+    const qrReady = settings.qr_enabled && hasRaastId
 
     const handleSubmit = async (formData) => {
         setSaving(true)
@@ -103,21 +108,48 @@ export default function SettingsPage() {
                             }`}
                     >
                         <QrCode className="h-3.5 w-3.5" />
-                        {qrReady ? 'QR active' : 'QR inactive'}
+                        {qrReady ? 'QR active' : settings.qr_enabled ? 'QR needs an ID' : 'QR off'}
                     </div>
                 </div>
 
-                {!qrReady && (
+                <div className="mb-6 flex items-start gap-4 p-4 rounded-lg bg-gray-800/40 border border-gray-700/50">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-200">Print payment QR on receipts</p>
+                        <p className="mt-0.5 text-xs text-gray-400">
+                            Turn off for card- or cash-only service. Your Raast ID is kept, so this can be switched
+                            back on without re-entering it.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={settings.qr_enabled}
+                        aria-label="Print payment QR on receipts"
+                        onClick={() => setSettings(prev => ({ ...prev, qr_enabled: !prev.qr_enabled }))}
+                        className={`relative flex-shrink-0 h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/40 ${settings.qr_enabled ? 'bg-orange-600' : 'bg-gray-600'
+                            }`}
+                    >
+                        <span
+                            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${settings.qr_enabled ? 'translate-x-[1.375rem]' : 'translate-x-0.5'
+                                }`}
+                        />
+                    </button>
+                </div>
+
+                {settings.qr_enabled && !hasRaastId && (
                     <div className="mb-6 flex items-start gap-3 p-4 rounded-lg bg-amber-900/15 border border-amber-800/40">
                         <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
                         <p className="text-sm text-amber-200/90">
-                            Without a Raast ID, receipts print without a payment QR code. Add one below to enable
-                            scan-to-pay.
+                            QR printing is on, but there&apos;s no Raast ID to encode — receipts will print without a
+                            code until you add one below.
                         </p>
                     </div>
                 )}
 
                 <form action={handleSubmit} className="space-y-6">
+                    {/* Explicit value: an unchecked checkbox submits nothing, which
+                        the action can't tell apart from a missing field. */}
+                    <input type="hidden" name="qr_enabled" value={settings.qr_enabled ? 'true' : 'false'} />
                     <div className="grid gap-6 md:grid-cols-2">
                         <div>
                             <div className="flex items-baseline justify-between mb-1.5">

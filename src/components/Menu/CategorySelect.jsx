@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Check, Search } from 'lucide-react';
+import { ChevronDown, Check, Search, Plus, Loader2 } from 'lucide-react';
 import styles from './CategorySelect.module.css';
 
 /*
@@ -11,15 +11,23 @@ import styles from './CategorySelect.module.css';
  * till screen. With 13+ categories it also needs a filter, which a native
  * select can't offer. This is a plain listbox: full keyboard support, big rows,
  * and type-to-filter once the list gets long.
+ *
+ * When `onCreate` is supplied the popup can also add a category inline, so a
+ * missing category doesn't mean abandoning a half-filled item form.
  */
-export default function CategorySelect({ id, categories, value, onChange, hasError }) {
+export default function CategorySelect({ id, categories, value, onChange, hasError, onCreate }) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(-1);
+    const [creating, setCreating] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [createError, setCreateError] = useState('');
 
     const rootRef = useRef(null);
     const searchRef = useRef(null);
     const listRef = useRef(null);
+    const createRef = useRef(null);
 
     const selected = categories.find(c => String(c.id) === String(value)) || null;
     const showSearch = categories.length > 7;
@@ -43,6 +51,9 @@ export default function CategorySelect({ id, categories, value, onChange, hasErr
         setOpen(false);
         setQuery('');
         setActiveIndex(-1);
+        setCreating(false);
+        setNewName('');
+        setCreateError('');
     };
 
     // Close on any click that lands outside, so the popup never strands itself
@@ -57,8 +68,10 @@ export default function CategorySelect({ id, categories, value, onChange, hasErr
     }, [open]);
 
     useEffect(() => {
-        if (open && showSearch) searchRef.current?.focus();
-    }, [open, showSearch]);
+        if (!open) return;
+        if (creating) createRef.current?.focus();
+        else if (showSearch) searchRef.current?.focus();
+    }, [open, creating, showSearch]);
 
     // Keep the highlighted row in view during keyboard navigation.
     useEffect(() => {
@@ -71,11 +84,51 @@ export default function CategorySelect({ id, categories, value, onChange, hasErr
         closeMenu();
     };
 
+    const submitNewCategory = async () => {
+        const name = newName.trim();
+        if (!name) {
+            setCreateError('Enter a category name');
+            return;
+        }
+        // Case-insensitive, because "BBQ" and "bbq" as separate categories is
+        // always a mistake rather than an intent.
+        const clash = categories.find(c => c.name.trim().toLowerCase() === name.toLowerCase());
+        if (clash) {
+            setCreateError('That category already exists');
+            return;
+        }
+
+        setSaving(true);
+        setCreateError('');
+        try {
+            const created = await onCreate(name);
+            commit(created);
+        } catch (error) {
+            console.error('Failed to create category:', error);
+            setCreateError(error.message || 'Could not create category');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const handleKeyDown = (e) => {
         if (!open) {
             if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
                 e.preventDefault();
                 openMenu();
+            }
+            return;
+        }
+
+        // While the create input is focused it owns Enter and Escape.
+        if (creating) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (!saving) submitNewCategory();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setCreating(false);
+                setCreateError('');
             }
             return;
         }
@@ -113,14 +166,6 @@ export default function CategorySelect({ id, categories, value, onChange, hasErr
         }
     };
 
-    if (categories.length === 0) {
-        return (
-            <div className={styles.emptyNotice}>
-                No categories yet — add one before creating items.
-            </div>
-        );
-    }
-
     return (
         <div className={styles.root} ref={rootRef} onKeyDown={handleKeyDown}>
             <button
@@ -132,14 +177,18 @@ export default function CategorySelect({ id, categories, value, onChange, hasErr
                 aria-expanded={open}
             >
                 <span className={selected ? styles.value : styles.placeholder}>
-                    {selected ? selected.name : 'Select category'}
+                    {selected
+                        ? selected.name
+                        : categories.length === 0
+                            ? 'No categories yet'
+                            : 'Select category'}
                 </span>
                 <ChevronDown size={18} className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} />
             </button>
 
             {open && (
                 <div className={styles.popup}>
-                    {showSearch && (
+                    {showSearch && !creating && (
                         <div className={styles.searchRow}>
                             <Search size={15} className={styles.searchIcon} />
                             <input
@@ -153,28 +202,83 @@ export default function CategorySelect({ id, categories, value, onChange, hasErr
                         </div>
                     )}
 
-                    <ul className={styles.list} role="listbox" ref={listRef}>
-                        {filtered.map((cat, i) => {
-                            const isSelected = String(cat.id) === String(value);
-                            return (
-                                <li
-                                    key={cat.id}
-                                    role="option"
-                                    aria-selected={isSelected}
-                                    className={`${styles.option} ${i === activeIndex ? styles.optionActive : ''}`}
-                                    onMouseEnter={() => setActiveIndex(i)}
-                                    onClick={() => commit(cat)}
-                                >
-                                    <span>{cat.name}</span>
-                                    {isSelected && <Check size={16} className={styles.optionCheck} />}
-                                </li>
-                            );
-                        })}
+                    {!creating && (
+                        <ul className={styles.list} role="listbox" ref={listRef}>
+                            {filtered.map((cat, i) => {
+                                const isSelected = String(cat.id) === String(value);
+                                return (
+                                    <li
+                                        key={cat.id}
+                                        role="option"
+                                        aria-selected={isSelected}
+                                        className={`${styles.option} ${i === activeIndex ? styles.optionActive : ''}`}
+                                        onMouseEnter={() => setActiveIndex(i)}
+                                        onClick={() => commit(cat)}
+                                    >
+                                        <span>{cat.name}</span>
+                                        {isSelected && <Check size={16} className={styles.optionCheck} />}
+                                    </li>
+                                );
+                            })}
 
-                        {filtered.length === 0 && (
-                            <li className={styles.noMatch}>No category matches &ldquo;{query}&rdquo;</li>
-                        )}
-                    </ul>
+                            {filtered.length === 0 && (
+                                <li className={styles.noMatch}>
+                                    {categories.length === 0
+                                        ? 'No categories yet — create the first one below.'
+                                        : <>No category matches &ldquo;{query}&rdquo;</>}
+                                </li>
+                            )}
+                        </ul>
+                    )}
+
+                    {onCreate && (creating ? (
+                        <div className={styles.createPanel}>
+                            <input
+                                ref={createRef}
+                                type="text"
+                                className={styles.createInput}
+                                placeholder="New category name"
+                                value={newName}
+                                onChange={(e) => { setNewName(e.target.value); setCreateError(''); }}
+                                maxLength={40}
+                                disabled={saving}
+                            />
+                            {createError && <span className={styles.createError}>{createError}</span>}
+                            <div className={styles.createActions}>
+                                <button
+                                    type="button"
+                                    className={styles.createCancel}
+                                    onClick={() => { setCreating(false); setCreateError(''); }}
+                                    disabled={saving}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    className={styles.createSave}
+                                    onClick={submitNewCategory}
+                                    disabled={saving}
+                                >
+                                    {saving ? <Loader2 size={13} className={styles.spin} /> : <Plus size={13} />}
+                                    {saving ? 'Adding...' : 'Add category'}
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            className={styles.createTrigger}
+                            onClick={() => {
+                                // Seed with whatever was typed into the filter — if it
+                                // matched nothing, that text is the category they want.
+                                setNewName(filtered.length === 0 ? query.trim() : '');
+                                setCreating(true);
+                            }}
+                        >
+                            <Plus size={14} />
+                            New category
+                        </button>
+                    ))}
                 </div>
             )}
         </div>

@@ -29,6 +29,11 @@ export async function updateSettings(formData) {
     const merchant_city = clean('merchant_city')
     const raast_id = clean('raast_id')
 
+    // Sent as an explicit "true"/"false" string rather than a bare checkbox:
+    // an unchecked checkbox submits nothing at all, which is indistinguishable
+    // from the field not being on the form.
+    const qr_enabled = formData.get('qr_enabled') !== 'false'
+
     // Check if row exists
     const existing = await getSettings()
 
@@ -36,13 +41,13 @@ export async function updateSettings(formData) {
     if (existing) {
         const res = await supabase
             .from('store_settings')
-            .update({ merchant_name, merchant_city, raast_id, updated_at: new Date() })
+            .update({ merchant_name, merchant_city, raast_id, qr_enabled, updated_at: new Date() })
             .eq('id', existing.id)
         error = res.error
     } else {
         const res = await supabase
             .from('store_settings')
-            .insert({ merchant_name, merchant_city, raast_id })
+            .insert({ merchant_name, merchant_city, raast_id, qr_enabled })
         error = res.error
     }
 

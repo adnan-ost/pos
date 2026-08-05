@@ -23,6 +23,7 @@ Run in order. Numbers reflect the order they were originally applied.
 | `07_rls_lockdown.sql` | Enables RLS on the tables left unrestricted |
 | `08_role_rls.sql` | Narrows writes on config tables to admin — **needs 06 first** |
 | `09_menu_images_storage.sql` | `menu-images` storage bucket + policies for photo upload |
+| `10_qr_toggle.sql` | `store_settings.qr_enabled` — switch receipt QR printing on/off |
 
 Two ordering constraints worth respecting if you ever rebuild:
 

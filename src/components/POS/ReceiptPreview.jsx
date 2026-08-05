@@ -21,7 +21,12 @@ const ReceiptPreview = ({
         getSettings().then(setSettings);
     }, []);
 
-    const qrPayload = settings?.raast_id ? generateEMVCoPayload({
+    // Two independent gates: the QR has to be switched on in Settings, and
+    // there has to be an identifier to encode. `qr_enabled` is read as true
+    // when absent so a database without the column behaves as it did before.
+    const qrAllowed = settings?.qr_enabled !== false && Boolean(settings?.raast_id);
+
+    const qrPayload = qrAllowed ? generateEMVCoPayload({
         raastId: settings.raast_id,
         amount: totals.total,
         merchantName: settings.merchant_name,

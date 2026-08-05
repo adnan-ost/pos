@@ -6,6 +6,7 @@ import CategoryForm from '@/components/Menu/CategoryForm';
 import {
     getMenuItems,
     getCategories,
+    getModifiers,
     deleteMenuItem,
     deleteCategory,
 } from '@/lib/supabaseDb';
@@ -324,7 +325,7 @@ export default function MenuManagementPage() {
                         </div>
                         <h3>Delete {deleteConfirm.type === 'item' ? 'Item' : 'Category'}?</h3>
                         <p>
-                            Are you sure you want to delete <strong>"{deleteConfirm.name}"</strong>?
+                            Are you sure you want to delete <strong>&ldquo;{deleteConfirm.name}&rdquo;</strong>?
                             {deleteConfirm.type === 'category' && (
                                 <span className={styles.warning}>
                                     <br />This will also delete all items in this category.
