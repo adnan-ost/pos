@@ -5,6 +5,7 @@ import {
     getMenuItems, getCategories, addOrder, getModifiers, getWaiters,
     getOpenTabs, appendRoundToOrder, settleOrder
 } from '@/lib/supabaseDb';
+import { createClient } from '@/lib/supabase/client';
 import { calcTotals, itemRound } from '@/lib/orderTotals';
 import { getOrderNumber, formatOrderDate } from '@/lib/orderDisplay';
 
@@ -106,6 +107,7 @@ export default function POSPage() {
     useEffect(() => {
         loadTabs();
 
+        const supabase = createClient();
         const subscription = supabase
             .channel('pos_tabs_channel')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
