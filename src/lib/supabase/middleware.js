@@ -40,7 +40,10 @@ export async function updateSession(request) {
     } = await supabase.auth.getUser()
 
     const pathname = request.nextUrl.pathname
-    const protectedPaths = ['/pos', '/orders', '/kds', '/menu', '/profile', '/reports', '/settings'];
+    // /reset-pin is here because the emailed recovery link authenticates the
+    // visitor at /auth/confirm before landing them on it — reaching it without
+    // a session means the link is missing or expired, so bounce to /login.
+    const protectedPaths = ['/pos', '/orders', '/kds', '/menu', '/profile', '/reports', '/settings', '/reset-pin'];
     const adminOnlyPaths = ['/menu', '/reports', '/settings'];
 
     if (!user && !pathname.startsWith('/login')) {

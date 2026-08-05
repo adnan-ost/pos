@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { login } from './actions'
+import { useState, useEffect } from 'react'
+import { login, requestPinReset } from './actions'
 import { Utensils, Loader2, ShieldCheck, UserRound } from 'lucide-react'
 
 const ROLES = [
@@ -12,11 +12,25 @@ const ROLES = [
 export default function LoginPage() {
     const [role, setRole] = useState('admin')
     const [error, setError] = useState('')
+    const [notice, setNotice] = useState('')
     const [loading, setLoading] = useState(false)
+    const [resetting, setResetting] = useState(false)
+
+    // Read from window rather than useSearchParams so this stays a plain client
+    // page with no Suspense boundary to prerender around.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('reset')) {
+            setNotice('PIN updated. Sign in with your new PIN.')
+        } else if (params.get('error') === 'link_invalid') {
+            setError('That reset link has expired or was already used. Request a new one.')
+        }
+    }, [])
 
     const handleSubmit = async (formData) => {
         setLoading(true)
         setError('')
+        setNotice('')
 
         const result = await login(formData)
 
@@ -24,6 +38,18 @@ export default function LoginPage() {
             setError(result.error)
             setLoading(false)
         }
+    }
+
+    const handleReset = async () => {
+        setResetting(true)
+        setError('')
+        setNotice('')
+
+        const result = await requestPinReset(role)
+
+        setNotice(result?.success || '')
+        setError(result?.error || '')
+        setResetting(false)
     }
 
     return (
@@ -88,6 +114,14 @@ export default function LoginPage() {
                         </div>
                     )}
 
+                    {notice && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/50 rounded-lg p-3">
+                            <p className="text-emerald-400 text-sm text-center font-medium">
+                                {notice}
+                            </p>
+                        </div>
+                    )}
+
                     <button
                         type="submit"
                         disabled={loading}
@@ -101,6 +135,17 @@ export default function LoginPage() {
                         ) : (
                             'Sign In'
                         )}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleReset}
+                        disabled={resetting || loading}
+                        className="w-full text-center text-sm text-gray-400 hover:text-orange-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                    >
+                        {resetting
+                            ? 'Sending reset link...'
+                            : `Forgot ${role === 'admin' ? 'Admin' : 'Staff'} PIN?`}
                     </button>
                 </form>
             </div>
