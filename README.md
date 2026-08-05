@@ -18,6 +18,15 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
+## Database
+
+Schema, migrations, seed data and auth setup live in [`supabase/`](supabase/) —
+see [`supabase/README.md`](supabase/README.md) for the apply order and the
+dashboard configuration the login and PIN-recovery flows depend on.
+
+Local environment needs `.env.local` with `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `AUTH_ADMIN_EMAIL` and `AUTH_STAFF_EMAIL`.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
