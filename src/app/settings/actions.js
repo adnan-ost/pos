@@ -21,9 +21,13 @@ export async function getSettings() {
 export async function updateSettings(formData) {
     const supabase = await createClient()
 
-    const merchant_name = formData.get('merchant_name')
-    const merchant_city = formData.get('merchant_city')
-    const raast_id = formData.get('raast_id')
+    // Trim before storing: a stray space in raast_id rides straight into the
+    // EMVCo payload and produces a QR the bank app rejects.
+    const clean = (key) => (formData.get(key) || '').trim()
+
+    const merchant_name = clean('merchant_name')
+    const merchant_city = clean('merchant_city')
+    const raast_id = clean('raast_id')
 
     // Check if row exists
     const existing = await getSettings()
