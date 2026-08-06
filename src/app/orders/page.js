@@ -6,8 +6,11 @@ import {
 } from 'date-fns';
 import styles from './orders.module.css';
 import {
-    getOrdersPage, getUnpaidOrdersCount, updateOrderStatus, getMenuItems, ORDERS_PAGE_SIZES
+    getOrdersPage, getUnpaidOrdersCount, updateOrderStatus, getMenuItems,
+    cancelOrder, ORDERS_PAGE_SIZES
 } from '@/lib/supabaseDb';
+import ReceiptPreview from '@/components/POS/ReceiptPreview';
+import { useRole } from '@/components/Layout/AppLayout';
 import { createClient } from '@/lib/supabase/client';
 import {
     getOrderNumber, formatOrderDate, buildImageMap, resolveItemImage, formatModifiers
@@ -16,7 +19,8 @@ import LiveClock from '@/components/Layout/LiveClock';
 import {
     UtensilsCrossed, ArrowRight, LayoutGrid, List, UserRound, Armchair,
     ShoppingBag, Bike, Loader2, ClipboardList, Layers, Wallet,
-    ChevronLeft, ChevronRight, CalendarRange, ArrowUpDown, RotateCcw
+    ChevronLeft, ChevronRight, CalendarRange, ArrowUpDown, RotateCcw,
+    Search, X, Ban, Printer, AlertTriangle
 } from 'lucide-react';
 
 const ORDER_TYPE = {
@@ -110,6 +114,7 @@ const resolvePeriod = (period, customFrom, customTo) => {
 };
 
 export default function OrdersPage() {
+    const role = useRole();
     const [orders, setOrders] = useState([]);
     const [total, setTotal] = useState(0);
     const [unpaidCount, setUnpaidCount] = useState(0);
@@ -129,6 +134,18 @@ export default function OrdersPage() {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(ORDERS_PAGE_SIZES[0]);
 
+    // Typed term vs the one actually queried. Debounced so a four-digit order
+    // number is one request instead of four.
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
+
+    // Void and reprint
+    const [voidTarget, setVoidTarget] = useState(null);
+    const [voidReason, setVoidReason] = useState('');
+    const [voidError, setVoidError] = useState('');
+    const [voiding, setVoiding] = useState(false);
+    const [receiptOrder, setReceiptOrder] = useState(null);
+
     const { from, to } = resolvePeriod(period, customFrom, customTo);
     const fromISO = from ? from.toISOString() : null;
     const toISO = to ? to.toISOString() : null;
@@ -139,7 +156,7 @@ export default function OrdersPage() {
         setIsFetching(true);
         try {
             const [{ rows, total: count }, unpaid] = await Promise.all([
-                getOrdersPage({ page, pageSize, status: activeTab, orderType, from: fromISO, to: toISO, sort }),
+                getOrdersPage({ page, pageSize, status: activeTab, orderType, from: fromISO, to: toISO, sort, search }),
                 getUnpaidOrdersCount(),
             ]);
             setOrders(rows);
@@ -151,7 +168,17 @@ export default function OrdersPage() {
             setIsLoading(false);
             setIsFetching(false);
         }
-    }, [page, pageSize, activeTab, orderType, fromISO, toISO, sort]);
+    }, [page, pageSize, activeTab, orderType, fromISO, toISO, sort, search]);
+
+    // Debounce the search box, and send the query back to page 1 — a term that
+    // matches three orders has no page 4.
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearch(searchInput);
+            setPage(1);
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [searchInput]);
 
     // Refetch whenever the query changes — filters, sort, or page.
     useEffect(() => {
@@ -217,11 +244,46 @@ export default function OrdersPage() {
         setPeriod('all');
         setCustomFrom('');
         setCustomTo('');
+        setSearchInput('');
+        setSearch('');
         setPage(1);
     };
 
     const filtersActive =
-        activeTab !== 'all' || orderType !== 'all' || sort !== 'newest' || period !== 'all';
+        activeTab !== 'all' || orderType !== 'all' || sort !== 'newest'
+        || period !== 'all' || search.trim() !== '';
+
+    /*
+     * Voiding is admin-only. Staff can advance a ticket but not make a sale
+     * disappear — with shared logins there's no way to tell who did it, so the
+     * capability sits with the person who has the admin PIN.
+     */
+    const canVoid = role === 'admin';
+
+    const submitVoid = async () => {
+        if (!voidTarget) return;
+        setVoiding(true);
+        setVoidError('');
+        try {
+            await cancelOrder(voidTarget.id, { reason: voidReason, by: role || 'staff' });
+            setVoidTarget(null);
+            setVoidReason('');
+            await load();
+        } catch (error) {
+            setVoidError(error.message || 'Could not void this order');
+        } finally {
+            setVoiding(false);
+        }
+    };
+
+    // Rebuilt from what was stored, so a reprint shows the bill as charged —
+    // including its original invoice number and any discount given.
+    const receiptTotals = receiptOrder && {
+        subtotal: Number(receiptOrder.subtotal) || 0,
+        discount: Number(receiptOrder.discount) || 0,
+        tax: Number(receiptOrder.tax) || 0,
+        total: Number(receiptOrder.total) || 0,
+    };
 
     const handleStatusUpdate = async (orderId, currentStatus) => {
         const flow = ['new', 'preparing', 'ready', 'completed'];
@@ -318,6 +380,40 @@ export default function OrdersPage() {
         </button>
     );
 
+    /*
+     * Reprint is always available; voiding only for an admin, and only while the
+     * bill is still open — a settled one would need a refund.
+     */
+    const RowActions = ({ order }) => {
+        const voidable = canVoid && order.status !== 'cancelled' && order.payment_status !== 'paid';
+
+        return (
+            <div className={styles.rowActions}>
+                {order.status !== 'completed' && order.status !== 'cancelled' && (
+                    <NextStatusBtn order={order} />
+                )}
+                <button
+                    className={styles.iconBtn}
+                    onClick={() => setReceiptOrder(order)}
+                    title="Reprint receipt"
+                    aria-label="Reprint receipt"
+                >
+                    <Printer size={15} />
+                </button>
+                {voidable && (
+                    <button
+                        className={`${styles.iconBtn} ${styles.voidBtn}`}
+                        onClick={() => { setVoidTarget(order); setVoidReason(''); setVoidError(''); }}
+                        title="Void order"
+                        aria-label="Void order"
+                    >
+                        <Ban size={15} />
+                    </button>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className={styles.container}>
             <div className={styles.header}>
@@ -359,8 +455,30 @@ export default function OrdersPage() {
                 </div>
             </div>
 
-            {/* ===== Period / type / sort ===== */}
+            {/* ===== Search / period / type / sort ===== */}
             <div className={styles.toolbar}>
+                <div className={styles.searchControl}>
+                    <Search size={15} className={styles.searchIcon} aria-hidden="true" />
+                    <input
+                        type="search"
+                        className={styles.searchInput}
+                        placeholder="Order #, name, phone or table"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        aria-label="Search orders"
+                    />
+                    {searchInput && (
+                        <button
+                            type="button"
+                            className={styles.searchClear}
+                            onClick={() => setSearchInput('')}
+                            aria-label="Clear search"
+                        >
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
+
                 <label className={styles.control}>
                     <CalendarRange size={14} aria-hidden="true" />
                     <select
@@ -499,9 +617,21 @@ export default function OrdersPage() {
                             <div className={styles.cardFooter}>
                                 <div className={styles.totalAmount}>
                                     Rs. {order.total.toLocaleString()}
+                                    {Number(order.discount) > 0 && (
+                                        <span className={styles.discountNote}>
+                                            after Rs. {Number(order.discount).toLocaleString()} off
+                                        </span>
+                                    )}
                                 </div>
-                                {order.status !== 'completed' && <NextStatusBtn order={order} />}
+                                <RowActions order={order} />
                             </div>
+
+                            {order.status === 'cancelled' && order.cancel_reason && (
+                                <div className={styles.voidNote}>
+                                    <Ban size={13} aria-hidden="true" />
+                                    Voided — {order.cancel_reason}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -570,7 +700,7 @@ export default function OrdersPage() {
                                             )}
                                         </td>
                                         <td className={styles.alignRight}>
-                                            {order.status !== 'completed' && <NextStatusBtn order={order} />}
+                                            <RowActions order={order} />
                                         </td>
                                     </tr>
                                 );
@@ -578,6 +708,78 @@ export default function OrdersPage() {
                         </tbody>
                     </table>
                 </div>
+            )}
+
+            {/* Void: a reason is mandatory, because a void with no reason tells
+                nobody anything three weeks later when the books don't balance. */}
+            {voidTarget && (
+                <div className={styles.modalOverlay} onClick={() => !voiding && setVoidTarget(null)}>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                        <h3 className={styles.modalTitle}>
+                            <AlertTriangle size={18} aria-hidden="true" />
+                            Void order #{getOrderNumber(voidTarget)}?
+                        </h3>
+                        <p className={styles.modalBody}>
+                            It stops counting towards sales and drops off the kitchen board.
+                            This can&apos;t be undone.
+                        </p>
+
+                        <input
+                            type="text"
+                            className={styles.modalInput}
+                            placeholder="Reason (wrong table, duplicate, walk-out)"
+                            value={voidReason}
+                            onChange={(e) => { setVoidReason(e.target.value); setVoidError(''); }}
+                            maxLength={120}
+                            autoFocus
+                            disabled={voiding}
+                        />
+
+                        {voidError && <p className={styles.modalError}>{voidError}</p>}
+
+                        <div className={styles.modalActions}>
+                            <button
+                                type="button"
+                                className={styles.modalCancel}
+                                onClick={() => setVoidTarget(null)}
+                                disabled={voiding}
+                            >
+                                Keep order
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.modalConfirm}
+                                onClick={submitVoid}
+                                disabled={voiding || !voidReason.trim()}
+                            >
+                                {voiding ? <Loader2 size={14} className={styles.inlineSpinner} /> : <Ban size={14} />}
+                                {voiding ? 'Voiding…' : 'Void order'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reprint. Prints the bill as it was charged, with its stored
+                invoice number, rather than minting a new document. */}
+            {receiptOrder && (
+                <ReceiptPreview
+                    cart={receiptOrder.items || []}
+                    totals={receiptTotals}
+                    includeTax={receiptOrder.include_tax ?? true}
+                    invoiceNumber={receiptOrder.invoice_number || undefined}
+                    meta={{
+                        orderNumber: getOrderNumber(receiptOrder),
+                        table: receiptOrder.table_number,
+                        waiter: receiptOrder.waiter_name,
+                        rounds: receiptOrder.round_count || 1,
+                    }}
+                    printLabel="Print"
+                    role={role}
+                    busy={false}
+                    onClose={() => setReceiptOrder(null)}
+                    onPrint={() => window.print()}
+                />
             )}
 
             {/* Hidden on a single page of results: a pager that can't page is noise */}

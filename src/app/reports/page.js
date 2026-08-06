@@ -10,7 +10,7 @@ import {
 import LiveClock from '@/components/Layout/LiveClock'
 import {
     DollarSign, ShoppingBag, TrendingUp, TrendingDown, Minus, Calendar,
-    Loader2, FileDown, Flame
+    Loader2, FileDown, Flame, Receipt
 } from 'lucide-react'
 
 const RANGE_LABEL = { today: 'Today', '7days': 'the last 7 days', '30days': 'the last 30 days' }
@@ -221,6 +221,104 @@ export default function ReportsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Money breakdown. All of this comes from columns the till was
+                already writing and nothing reported on. */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800 report-card">
+                    <p className="text-sm font-medium text-gray-400 mb-4">Payment mix</p>
+                    <div className="space-y-3">
+                        {[
+                            { key: 'cash', label: 'Cash', color: 'bg-green-500' },
+                            { key: 'card', label: 'Card', color: 'bg-blue-500' },
+                            { key: 'unpaid', label: 'Open tabs', color: 'bg-amber-500' },
+                            // Only shown when there is some: history from before the
+                            // field existed, and not worth a permanent empty row.
+                            { key: 'unrecorded', label: 'Not recorded', color: 'bg-gray-500' },
+                        ].filter(({ key }) => key !== 'unrecorded' || (stats.paymentMix?.unrecorded?.count || 0) > 0)
+                            .map(({ key, label, color }) => {
+                            const row = stats.paymentMix?.[key] || { amount: 0, count: 0 }
+                            const share = stats.totalRevenue > 0
+                                ? Math.round((row.amount / stats.totalRevenue) * 100)
+                                : 0
+                            return (
+                                <div key={key}>
+                                    <div className="flex items-baseline justify-between text-sm">
+                                        <span className="text-gray-300">{label}</span>
+                                        <span className="text-white font-semibold tabular-nums">
+                                            Rs. {Math.round(row.amount).toLocaleString()}
+                                            <span className="ml-2 text-xs font-normal text-gray-500">
+                                                {row.count} {row.count === 1 ? 'order' : 'orders'}
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <div className="mt-1.5 h-1.5 w-full rounded-full bg-gray-800 overflow-hidden">
+                                        <div className={`h-full ${color}`} style={{ width: `${share}%` }} />
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+
+                <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800 report-card flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-gray-400 mb-1">Tax collected</p>
+                        <h3 className="text-2xl font-bold text-white">
+                            Rs. {Math.round(stats.totalTax || 0).toLocaleString()}
+                        </h3>
+                        <p className="mt-2 text-xs text-gray-500">
+                            {Math.round(stats.totalDiscount || 0) > 0
+                                ? `After Rs. ${Math.round(stats.totalDiscount).toLocaleString()} of discounts given`
+                                : 'No discounts given this period'}
+                        </p>
+                    </div>
+                    <div className="h-12 w-12 bg-orange-900/20 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Receipt className="h-6 w-6 text-orange-500" />
+                    </div>
+                </div>
+
+                <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800 report-card">
+                    <p className="text-sm font-medium text-gray-400 mb-4">Takings by server</p>
+                    {stats.waiters?.length ? (
+                        <div className="space-y-2.5">
+                            {stats.waiters.slice(0, 5).map(w => (
+                                <div key={w.name} className="flex items-baseline justify-between text-sm">
+                                    <span className="text-gray-300 truncate mr-3">{w.name}</span>
+                                    <span className="text-white font-semibold tabular-nums whitespace-nowrap">
+                                        Rs. {Math.round(w.revenue).toLocaleString()}
+                                        <span className="ml-2 text-xs font-normal text-gray-500">{w.orders}</span>
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-500">No orders had a server assigned.</p>
+                    )}
+                </div>
+            </div>
+
+            {/* Sales by hour — the shape of a service, for staffing */}
+            {stats.hourly?.length > 0 && (
+                <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800 report-card">
+                    <h3 className="text-lg font-semibold text-white mb-6">Busiest hours</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={stats.hourly}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                            <XAxis dataKey="label" stroke="#6b7280" fontSize={11} tickLine={false} />
+                            <YAxis stroke="#6b7280" fontSize={11} tickLine={false} axisLine={false} />
+                            <Tooltip
+                                contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8 }}
+                                labelStyle={{ color: '#f3f4f6' }}
+                                formatter={(value, name) => name === 'revenue'
+                                    ? [`Rs. ${Math.round(value).toLocaleString()}`, 'Sales']
+                                    : [value, 'Orders']}
+                            />
+                            <Bar dataKey="revenue" fill="#F26513" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
