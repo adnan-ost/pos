@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import styles from './kds.module.css';
 import { getOrders, updateOrderStatus, getMenuItems } from '@/lib/supabaseDb';
-import { createClient } from '@/lib/supabase/client';
+import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import {
     getOrderNumber, buildImageMap, resolveItemImage, formatModifiers
 } from '@/lib/orderDisplay';
@@ -115,6 +115,13 @@ export default function KDSPage() {
         }
     }, [chime]);
 
+    /*
+     * Session-aware subscription that also refetches after a reconnect — the
+     * board runs unattended for a whole service, and events missed while the
+     * socket was down would otherwise never arrive.
+     */
+    useRealtimeTable({ table: 'orders', channel: 'kds_channel', onChange: loadOrders });
+
     useEffect(() => {
         getMenuItems().then(items => setImageMap(buildImageMap(items)));
         // loadOrders is async and awaits a fetch before it touches state, so
@@ -122,24 +129,10 @@ export default function KDSPage() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         loadOrders();
 
-        // Session-aware client: once `orders` moves to authenticated-only
-        // RLS, an anon-key subscription would silently receive nothing.
-        const supabase = createClient();
-        const subscription = supabase
-            .channel('kds_channel')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                loadOrders();
-            })
-            .subscribe();
-
-        // Safety net: this board runs unattended for a whole service, and a
-        // dropped socket would silently stop new tickets from appearing.
+        // Belt and braces on top of the reconnect refetch: a socket can be
+        // healthy and still have dropped a message.
         const poll = setInterval(loadOrders, 15000);
-
-        return () => {
-            subscription.unsubscribe();
-            clearInterval(poll);
-        };
+        return () => clearInterval(poll);
     }, [loadOrders]);
 
     // Ticket age drives the colour coding, so keep a ticking clock

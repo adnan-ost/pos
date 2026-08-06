@@ -5,9 +5,10 @@ import {
     getMenuItems, getCategories, addOrder, getModifiers, getWaiters,
     getOpenTabs, appendRoundToOrder, settleOrder, getTaxRate, findCustomerByPhone
 } from '@/lib/supabaseDb';
-import { createClient } from '@/lib/supabase/client';
+import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import { calcTotals, itemRound, DEFAULT_TAX_RATE } from '@/lib/orderTotals';
 import { getOrderNumber, formatOrderDate } from '@/lib/orderDisplay';
+import { loadCartDraft, saveCartDraft, clearCartDraft } from '@/lib/cartDraft';
 
 import ModifierModal from '@/components/POS/ModifierModal';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
@@ -63,6 +64,16 @@ export default function POSPage() {
     const [activeTabId, setActiveTabId] = useState(null);
     const [pendingInvoiceNo, setPendingInvoiceNo] = useState(null);
 
+    /*
+     * One id per checkout attempt, reused on retry.
+     *
+     * Without it a timeout during checkout is unrecoverable: the cashier can't
+     * tell whether the order landed, retries, and gets a second order because
+     * addOrder mints a fresh order_number each call. Deliberately NOT cleared in
+     * the error path — reusing it is the whole point.
+     */
+    const [pendingRequestId, setPendingRequestId] = useState(null);
+
     // Order details
     const [waiters, setWaiters] = useState([]);
     const [waiterId, setWaiterId] = useState('');
@@ -107,6 +118,27 @@ export default function POSPage() {
         };
         loadData();
         getWaiters().then(setWaiters);
+
+        /*
+         * Restore an unsent basket. Done here rather than in a useState
+         * initialiser because localStorage doesn't exist during the server
+         * render, and seeding state from it there would hydrate mismatched.
+         */
+        const draft = loadCartDraft();
+        if (draft) {
+            setCart(draft.cart);
+            setOrderType(draft.orderType || 'dine-in');
+            setTableNumber(draft.tableNumber || '');
+            setWaiterId(draft.waiterId || '');
+            setCustomerName(draft.customerName || '');
+            setCustomerPhone(draft.customerPhone || '');
+            setCustomerAddress(draft.customerAddress || '');
+            setIncludeTax(draft.includeTax ?? true);
+            // The tab itself is deliberately not restored: it may have been
+            // settled on another terminal while this one was away, and
+            // reattaching to a closed bill is worse than starting detached.
+            setNotice('Recovered an unsent order from this device.');
+        }
         // Rate comes from store_settings so it survives a rate change without a
         // deploy; getTaxRate falls back to the default if it can't be read.
         getTaxRate().then(setTaxRate);
@@ -122,23 +154,35 @@ export default function POSPage() {
     // settles a bill. Follow the table rather than trusting our own snapshot.
     useEffect(() => {
         loadTabs();
-
-        const supabase = createClient();
-        const subscription = supabase
-            .channel('pos_tabs_channel')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                loadTabs();
-            })
-            .subscribe();
-
-        return () => { subscription.unsubscribe(); };
     }, [loadTabs]);
+
+    // Tabs can move under us — the kitchen bumps a ticket, another terminal
+    // settles a bill — including while this terminal's socket was down.
+    useRealtimeTable({ table: 'orders', channel: 'pos_tabs_channel', onChange: loadTabs });
 
     useEffect(() => {
         if (!notice) return;
         const timer = setTimeout(() => setNotice(''), 3500);
         return () => clearTimeout(timer);
     }, [notice]);
+
+    /*
+     * Mirror the unsent basket to the device on every change. Cheap enough to do
+     * eagerly — the alternative is debouncing and losing the last few seconds,
+     * which is exactly the window a crash happens in.
+     */
+    useEffect(() => {
+        saveCartDraft({
+            cart,
+            orderType,
+            tableNumber,
+            waiterId,
+            customerName,
+            customerPhone,
+            customerAddress,
+            includeTax,
+        });
+    }, [cart, orderType, tableNumber, waiterId, customerName, customerPhone, customerAddress, includeTax]);
 
     /*
      * The attached tab is derived, never stored: if it gets settled on another
@@ -301,6 +345,11 @@ export default function POSPage() {
         setCustomerPhone('');
         setCustomerAddress('');
         setCustomerFound(false);
+        setPendingInvoiceNo(null);
+        setPendingRequestId(null);
+        // The order is on the server now, so the local copy is no longer a
+        // recovery aid — leaving it would resurrect a completed sale.
+        clearCartDraft();
     };
 
     /*
@@ -364,6 +413,7 @@ export default function POSPage() {
         // Fixed now rather than at print time so the number stored on the order
         // is the number on the paper, and a reprint is the same document.
         setPendingInvoiceNo(newInvoiceNumber());
+        setPendingRequestId(crypto.randomUUID());
         setReceiptMode('pay-now');
     };
 
@@ -376,6 +426,7 @@ export default function POSPage() {
                 ...billColumns(billTotals),
                 discount_reason: discountAmount > 0 ? discountReason.trim() || null : null,
                 invoice_number: pendingInvoiceNo,
+                client_request_id: pendingRequestId,
                 include_tax: includeTax,
                 order_type: orderType,
                 ...orderDetails(),
@@ -398,9 +449,14 @@ export default function POSPage() {
     const handleOpenTab = async () => {
         if (cart.length === 0) return;
         setIsSending(true);
+        // Same protection as checkout — opening a tab twice would have the
+        // kitchen cook the first round twice.
+        const requestId = pendingRequestId || crypto.randomUUID();
+        setPendingRequestId(requestId);
         try {
             const created = await addOrder({
                 items: cart.map(item => ({ ...item, round: 1 })),
+                client_request_id: requestId,
                 ...billColumns(billTotals),
                 include_tax: includeTax,
                 order_type: orderType,
@@ -411,6 +467,7 @@ export default function POSPage() {
             await loadTabs();
             setActiveTabId(created.id);
             setCart([]);
+            setPendingRequestId(null);
             setNotice(`Tab #${getOrderNumber(created)} opened — add rounds any time, pay at the end.`);
         } catch (error) {
             console.error('Failed to open tab', error);

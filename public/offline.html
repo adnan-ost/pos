@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline · Flames by the Indus</title>
+    <style>
+        /* Self-contained on purpose: this page is what loads when nothing else
+           can, so it can't depend on a stylesheet being cached. */
+        :root { color-scheme: dark; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background: #0f172a;
+            color: #f1f5f9;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            text-align: center;
+        }
+        .card {
+            max-width: 26rem;
+        }
+        .mark {
+            width: 4rem;
+            height: 4rem;
+            margin: 0 auto 1.5rem;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+        }
+        h1 { margin: 0 0 0.75rem; font-size: 1.5rem; }
+        p { margin: 0 0 1.5rem; color: #94a3b8; line-height: 1.55; }
+        button {
+            padding: 0.7rem 1.4rem;
+            border: none;
+            border-radius: 0.5rem;
+            background: #ea580c;
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover { background: #c2410c; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="mark">🔥</div>
+        <h1>No connection</h1>
+        <p>
+            This terminal can't reach the server. Any order you were building is still
+            saved on this device and will be here when you're back.
+        </p>
+        <button onclick="location.reload()">Try again</button>
+    </div>
+</body>
+</html>

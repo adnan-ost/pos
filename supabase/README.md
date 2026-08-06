@@ -24,6 +24,8 @@ Run in order. Numbers reflect the order they were originally applied.
 | `08_role_rls.sql` | Narrows writes on config tables to admin — **needs 06 first** |
 | `09_menu_images_storage.sql` | `menu-images` storage bucket + policies for photo upload |
 | `10_qr_toggle.sql` | `store_settings.qr_enabled` — switch receipt QR printing on/off |
+| `11_pos_operations.sql` | Voids, discounts, invoice numbers, delivery address, configurable tax rate, order indexes |
+| `12_order_idempotency.sql` | `orders.client_request_id` + unique index — makes a retried checkout safe |
 
 Two ordering constraints worth respecting if you ever rebuild:
 

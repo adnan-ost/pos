@@ -358,11 +358,57 @@ export const addOrder = async (order) => {
         orderData.paid_at = now;
     }
 
-    const { data, error } = await supabase
-        .from('orders')
-        .insert([orderData])
-        .select()
-        .single();
+    /*
+     * Idempotent when the caller supplies client_request_id.
+     *
+     * DO NOTHING rather than DO UPDATE: if the first attempt actually succeeded
+     * and the kitchen has since started the ticket, an update would reset its
+     * status to 'new' and re-fire food that's already on the pass. On a
+     * collision we return the order that's already there, so a retry after a
+     * timeout is indistinguishable from a first attempt that worked.
+     */
+    let data, error;
+
+    if (orderData.client_request_id) {
+        ({ data, error } = await supabase
+            .from('orders')
+            .upsert([orderData], { onConflict: 'client_request_id', ignoreDuplicates: true })
+            .select()
+            .maybeSingle());
+
+        // Nothing came back, so this id was already used — fetch the winner.
+        if (!error && !data) {
+            const existing = await supabase
+                .from('orders')
+                .select('*')
+                .eq('client_request_id', orderData.client_request_id)
+                .maybeSingle();
+
+            if (existing.error) throw existing.error;
+            if (existing.data) return existing.data;
+        }
+
+        /*
+         * Migration 12 not applied yet: rather than refuse the sale, drop the id
+         * and insert normally. That gives up idempotency for this order — which
+         * is where it already was — instead of stopping the till.
+         */
+        if (error && /client_request_id/i.test(error.message || '')) {
+            console.warn('client_request_id column missing — run migration 12 for retry-safe checkout');
+            const { client_request_id: _unused, ...withoutId } = orderData;
+            ({ data, error } = await supabase
+                .from('orders')
+                .insert([withoutId])
+                .select()
+                .single());
+        }
+    } else {
+        ({ data, error } = await supabase
+            .from('orders')
+            .insert([orderData])
+            .select()
+            .single());
+    }
 
     if (error) throw error;
 

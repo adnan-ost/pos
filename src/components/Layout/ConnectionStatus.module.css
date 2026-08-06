@@ -1,0 +1,54 @@
+/*
+ * Pinned to the bottom rather than the top: the top of every screen already
+ * carries a header, and on the KDS it holds tickets the kitchen is reading.
+ * Bottom-centre is visible without covering anything that matters.
+ */
+.banner {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 999px;
+    border: 1px solid;
+    font-size: 0.82rem;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    /* Never swallows a tap meant for the button underneath it */
+    pointer-events: none;
+    max-width: calc(100vw - 2rem);
+}
+
+.offline {
+    background: #7f1d1d;
+    border-color: #b91c1c;
+    color: #fee2e2;
+}
+
+.reconnecting {
+    background: #78350f;
+    border-color: #b45309;
+    color: #fef3c7;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spin { animation-duration: 3s; }
+}
+
+@media print {
+    /* A receipt shouldn't carry a connection warning */
+    .banner { display: none; }
+}

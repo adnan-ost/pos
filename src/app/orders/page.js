@@ -11,7 +11,7 @@ import {
 } from '@/lib/supabaseDb';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
 import { useRole } from '@/components/Layout/AppLayout';
-import { createClient } from '@/lib/supabase/client';
+import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import {
     getOrderNumber, formatOrderDate, buildImageMap, resolveItemImage, formatModifiers
 } from '@/lib/orderDisplay';
@@ -196,27 +196,23 @@ export default function OrdersPage() {
         loadRef.current = load;
     }, [load]);
 
+    /*
+     * Session-aware subscription that refetches the query currently on screen —
+     * both on a change and after a reconnect, so a dropped socket doesn't leave
+     * this list quietly missing the orders taken while it was down.
+     */
+    useRealtimeTable({
+        table: 'orders',
+        channel: 'orders_channel',
+        onChange: () => loadRef.current?.(),
+    });
+
     useEffect(() => {
         getMenuItems().then(items => setItemImages(buildImageMap(items)));
 
         // Restore the operator's last view choice
         const saved = localStorage.getItem('orders:view');
         if (saved === 'grid' || saved === 'list') setView(saved);
-
-        // Real-time subscription for new orders. A session-aware client is
-        // required here: once orders/customers move to authenticated-only
-        // RLS, an anon-key subscription would silently receive nothing.
-        const supabase = createClient();
-        const subscription = supabase
-            .channel('orders_channel')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                loadRef.current?.();
-            })
-            .subscribe();
-
-        return () => {
-            subscription.unsubscribe();
-        };
     }, []);
 
     // A page that no longer exists (filters narrowed the result set) would
