@@ -1,7 +1,7 @@
 import { createClient } from './supabase/client';
 
 const supabase = createClient();
-import { calcTotals } from './orderTotals';
+import { calcTotals, DEFAULT_TAX_RATE } from './orderTotals';
 
 // ==================== CATEGORIES ====================
 
@@ -113,6 +113,25 @@ export const deleteMenuItem = async (id) => {
     return true;
 };
 
+/*
+ * "86-ing" an item — marking it sold out for the rest of service.
+ *
+ * Kept separate from updateMenuItem so the floor can flip availability without
+ * holding the whole item form open, and without a stale form overwriting a
+ * price someone edited in the office a minute ago.
+ */
+export const setMenuItemAvailability = async (id, isAvailable) => {
+    const { data, error } = await supabase
+        .from('menu_items')
+        .update({ is_available: isAvailable, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+};
+
 // ==================== WAITERS ====================
 
 export const getWaiters = async () => {
@@ -164,8 +183,29 @@ export const getOrdersPage = async ({
     from = null,         // ISO timestamp, inclusive
     to = null,           // ISO timestamp, inclusive
     sort = 'newest',
+    search = '',
 } = {}) => {
     let query = supabase.from('orders').select('*', { count: 'exact' });
+
+    /*
+     * "Find that order" — by receipt number, who it was for, their phone, or
+     * the table it went to. Which of those the operator has to hand varies, so
+     * one box searches all four.
+     *
+     * Commas, parens and the wildcards themselves are stripped: PostgREST's
+     * `or` filter is a comma-separated expression list, so a comma in the term
+     * would be read as the start of another condition rather than as text.
+     */
+    const term = search.trim().replace(/[,()*%\\]/g, '');
+    if (term) {
+        const like = `%${term}%`;
+        query = query.or([
+            `order_number.ilike.${like}`,
+            `customer_name.ilike.${like}`,
+            `customer_phone.ilike.${like}`,
+            `table_number.ilike.${like}`,
+        ].join(','));
+    }
 
     if (status === 'unpaid') {
         // Cuts across the kitchen flow: an open tab can be at any stage,
@@ -203,6 +243,45 @@ export const getOrdersPage = async ({
     return { rows: data || [], total: count ?? 0 };
 };
 
+/*
+ * Void an order, with the reason recorded.
+ *
+ * Refuses a bill that is already settled. Money has changed hands at that
+ * point, so reversing it is a refund — a flow with its own cash implications
+ * that doesn't exist yet. Silently zeroing the revenue while the cash sits in
+ * the drawer would be worse than not allowing it.
+ */
+export const cancelOrder = async (orderId, { reason, by } = {}) => {
+    const order = await getOrderById(orderId);
+
+    if (order.status === 'cancelled') {
+        throw new Error('This order is already voided.');
+    }
+    if (order.payment_status === 'paid') {
+        throw new Error('This bill is already settled — voiding it would need a refund.');
+    }
+    if (!reason || !reason.trim()) {
+        throw new Error('A reason is required to void an order.');
+    }
+
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+        .from('orders')
+        .update({
+            status: 'cancelled',
+            cancelled_at: now,
+            cancel_reason: reason.trim(),
+            cancelled_by: by || null,
+            updated_at: now,
+        })
+        .eq('id', orderId)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+};
+
 // Counted separately from the current page: the badge means "unpaid overall",
 // not "unpaid among the rows you happen to be looking at".
 export const getUnpaidOrdersCount = async () => {
@@ -218,6 +297,49 @@ export const getUnpaidOrdersCount = async () => {
     }
     return count ?? 0;
 };
+
+// ==================== TAX RATE ====================
+
+/*
+ * The live GST rate, read from store_settings so it can change without a
+ * deploy. Cached for the page's lifetime: it is consulted on every price
+ * calculation and changes perhaps once a year. An admin who edits it sees the
+ * new rate on the next reload of the till, which is the right trade against
+ * issuing a query per keystroke in the cart.
+ */
+let taxRateCache = null;
+
+export const getTaxRate = async () => {
+    if (taxRateCache !== null) return taxRateCache;
+
+    const { data, error } = await supabase
+        .from('store_settings')
+        .select('tax_rate')
+        .maybeSingle();
+
+    // Falls back rather than throwing: a till that cannot read a setting should
+    // still be able to price an order.
+    taxRateCache = (error || data?.tax_rate == null)
+        ? DEFAULT_TAX_RATE
+        : Number(data.tax_rate);
+
+    return taxRateCache;
+};
+
+/*
+ * calcTotals also returns `taxable`, which callers display but the orders table
+ * has no column for, so every write goes through here.
+ *
+ * `discount` is omitted when zero so the till keeps working against a database
+ * where migration 11 has not been applied yet — an unknown column would
+ * otherwise fail the whole write.
+ */
+const totalsColumns = (totals) => ({
+    subtotal: totals.subtotal,
+    tax: totals.tax,
+    total: totals.total,
+    ...(totals.discount > 0 && { discount: totals.discount }),
+});
 
 export const addOrder = async (order) => {
     const now = new Date().toISOString();
@@ -243,6 +365,91 @@ export const addOrder = async (order) => {
         .single();
 
     if (error) throw error;
+
+    // Best-effort, and deliberately after the order is safely stored: the
+    // customer record is useful, but nothing about it is worth losing a sale
+    // over if the write fails.
+    if (orderData.customer_phone) {
+        recordCustomer({
+            name: orderData.customer_name,
+            phone: orderData.customer_phone,
+            address: orderData.customer_address,
+            spent: data.total || 0,
+        }).catch(err => console.error('Could not record customer', err));
+    }
+
+    return data;
+};
+
+/*
+ * Keeps a row per customer, keyed on phone — the one identifier a caller
+ * reliably has. Running totals are incremented from the order that just
+ * landed rather than recomputed, so this stays a single round trip.
+ *
+ * Address and name are only overwritten when supplied, so a delivery that
+ * came in without an address doesn't erase the one already on file.
+ */
+export const recordCustomer = async ({ name, phone, address, spent = 0 }) => {
+    if (!phone) return null;
+
+    const { data: existing } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', phone)
+        .maybeSingle();
+
+    const now = new Date().toISOString();
+
+    if (existing) {
+        const { data, error } = await supabase
+            .from('customers')
+            .update({
+                ...(name && { name }),
+                ...(address && { address }),
+                total_orders: (existing.total_orders || 0) + 1,
+                total_spent: Number(existing.total_spent || 0) + Number(spent || 0),
+                updated_at: now,
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    const { data, error } = await supabase
+        .from('customers')
+        .insert([{
+            // name is NOT NULL on the table, so an anonymous phone order still
+            // needs something in the column.
+            name: name || 'Walk-in',
+            phone,
+            address: address || null,
+            total_orders: 1,
+            total_spent: Number(spent || 0),
+        }])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+};
+
+// Prefill at the till: a returning caller's details from their phone number.
+export const findCustomerByPhone = async (phone) => {
+    if (!phone) return null;
+
+    const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', phone.trim())
+        .maybeSingle();
+
+    if (error) {
+        console.error('Error looking up customer:', error);
+        return null;
+    }
     return data;
 };
 
@@ -314,14 +521,19 @@ export const appendRoundToOrder = async (orderId, newItems, details = {}) => {
     ];
 
     const includeTax = details.include_tax ?? order.include_tax ?? true;
-    const totals = calcTotals(items, includeTax);
+    // A discount already agreed on this tab survives the new round. Re-pricing
+    // without it would quietly withdraw something the customer was promised.
+    const totals = calcTotals(items, includeTax, {
+        taxRate: await getTaxRate(),
+        discount: order.discount || 0,
+    });
     const now = new Date().toISOString();
 
     const { data, error } = await supabase
         .from('orders')
         .update({
             items,
-            ...totals,
+            ...totalsColumns(totals),
             include_tax: includeTax,
             round_count: round,
             last_round_at: now,
@@ -346,7 +558,7 @@ export const appendRoundToOrder = async (orderId, newItems, details = {}) => {
  * kitchen. A tab whose food is already out is done, so it also leaves the
  * kitchen board; one still being cooked stays there for the pass.
  */
-export const settleOrder = async (orderId, { paymentMode = 'cash', includeTax } = {}) => {
+export const settleOrder = async (orderId, { paymentMode = 'cash', includeTax, discount, discountReason } = {}) => {
     const order = await getOrderById(orderId);
 
     if (order.payment_status === 'paid') {
@@ -354,14 +566,19 @@ export const settleOrder = async (orderId, { paymentMode = 'cash', includeTax } 
     }
 
     const taxed = includeTax ?? order.include_tax ?? true;
-    const totals = calcTotals(order.items, taxed);
+    const totals = calcTotals(order.items, taxed, {
+        taxRate: await getTaxRate(),
+        // A discount can be applied at settle time, or carried from the tab.
+        discount: discount ?? order.discount ?? 0,
+    });
     const now = new Date().toISOString();
 
     const { data, error } = await supabase
         .from('orders')
         .update({
-            ...totals,
+            ...totalsColumns(totals),
             include_tax: taxed,
+            ...(discountReason !== undefined && { discount_reason: discountReason }),
             payment_status: 'paid',
             payment_mode: paymentMode,
             paid_at: now,

@@ -781,3 +781,30 @@
     accent-color: var(--primary);
     cursor: pointer;
 }
+/* ===== Sold out (86'd) ===== */
+/* Kept visible rather than hidden: staff need to see the dish to tell a
+   customer it's off tonight, and a vanishing grid item reads as a bug. */
+.soldOut {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.soldOut:hover {
+    transform: none;
+    border-color: var(--border);
+}
+
+.soldOutTag {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 2;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}

@@ -476,3 +476,47 @@
 .confirmDeleteBtn:hover {
     opacity: 0.9;
 }
+/* ===== Sold out (86'd) ===== */
+.soldOut .imageContainer,
+.soldOut .itemContent {
+    opacity: 0.5;
+}
+
+.availabilityBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.7rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--success);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.availabilityBtn:hover:not(:disabled) {
+    border-color: currentColor;
+}
+
+.availabilityBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Sold out is the exceptional state, so it gets the louder colour */
+.availabilityOff {
+    color: var(--destructive);
+    border-color: var(--destructive);
+}
+
+.spin {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

@@ -153,6 +153,10 @@ export default function POSPage() {
 
     // Handle Item Click
     const handleItemClick = (item) => {
+        // Sold-out items stay on the grid so staff can tell a customer it's off
+        // tonight, but they can't be rung up.
+        if (item.is_available === false) return;
+
         if ((item.variants && item.variants.length > 0) || (item.modifiers && item.modifiers.length > 0)) {
             setModifyingItem(item);
         } else {
@@ -458,24 +462,33 @@ export default function POSPage() {
 
                 {/* Menu Grid */}
                 <div className={styles.menuGrid}>
-                    {filteredItems.map(item => (
-                        <div key={item.id} className={styles.menuItem} onClick={() => handleItemClick(item)}>
-                            <div className={styles.imageContainer}>
-                                {item.image && <img src={item.image} alt={item.name} />}
-                            </div>
-                            <div className={styles.itemContent}>
-                                <div className={styles.itemHeader}>
-                                    <h3>{item.name}</h3>
-                                    <span className={styles.itemPrice}>Rs. {item.price}</span>
+                    {filteredItems.map(item => {
+                        const soldOut = item.is_available === false;
+                        return (
+                            <div
+                                key={item.id}
+                                className={`${styles.menuItem} ${soldOut ? styles.soldOut : ''}`}
+                                onClick={() => handleItemClick(item)}
+                                aria-disabled={soldOut}
+                            >
+                                <div className={styles.imageContainer}>
+                                    {item.image && <img src={item.image} alt={item.name} />}
+                                    {soldOut && <span className={styles.soldOutTag}>Sold out</span>}
                                 </div>
+                                <div className={styles.itemContent}>
+                                    <div className={styles.itemHeader}>
+                                        <h3>{item.name}</h3>
+                                        <span className={styles.itemPrice}>Rs. {item.price}</span>
+                                    </div>
 
-                                <p className={styles.itemDesc}>{item.description}</p>
+                                    <p className={styles.itemDesc}>{item.description}</p>
 
-                                {item.variants && <span className={styles.badge}>Variants</span>}
+                                    {item.variants && <span className={styles.badge}>Variants</span>}
+                                </div>
+                                {!soldOut && <button className={styles.addBtn}><Plus size={16} /></button>}
                             </div>
-                            <button className={styles.addBtn}><Plus size={16} /></button>
-                        </div>
-                    ))}
+                        );
+                    })}
                     {isLoading ? (
                         <div className={styles.emptyState}>
                             <Loader2 className={styles.loadingSpinner} size={28} />

@@ -386,3 +386,22 @@
         top: 120px;
     }
 }
+/* ===== Sold out (86'd) ===== */
+.soldOut .imageContainer img,
+.soldOut .itemContent {
+    opacity: 0.5;
+}
+
+.soldOutTag {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.6rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    background: var(--destructive, #ef4444);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}

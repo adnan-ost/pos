@@ -9,6 +9,7 @@ import {
     getModifiers,
     deleteMenuItem,
     deleteCategory,
+    setMenuItemAvailability,
 } from '@/lib/supabaseDb';
 import {
     Plus,
@@ -21,7 +22,10 @@ import {
     Utensils,
     Cookie,
     GlassWater,
-    AlertCircle
+    AlertCircle,
+    Eye,
+    EyeOff,
+    Loader2
 } from 'lucide-react';
 
 // Icon mapping for categories
@@ -43,6 +47,7 @@ export default function MenuManagementPage() {
     const [activeCategory, setActiveCategory] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [togglingId, setTogglingId] = useState(null);
 
     // Modal states
     const [showItemForm, setShowItemForm] = useState(false);
@@ -98,6 +103,32 @@ export default function MenuManagementPage() {
     }, [menuData.items, activeCategory, searchQuery]);
 
     // Handle item edit
+    /*
+     * Applied to local state straight away rather than waiting for a refetch:
+     * the kitchen shouts "no more karahi" across a busy pass and the floor needs
+     * to see it register. Reverted if the write fails.
+     */
+    const handleToggleAvailability = async (item) => {
+        const next = item.is_available === false;
+        setTogglingId(item.id);
+        setMenuData(prev => ({
+            ...prev,
+            items: prev.items.map(i => (i.id === item.id ? { ...i, is_available: next } : i)),
+        }));
+
+        try {
+            await setMenuItemAvailability(item.id, next);
+        } catch (error) {
+            console.error('Failed to change availability', error);
+            setMenuData(prev => ({
+                ...prev,
+                items: prev.items.map(i => (i.id === item.id ? { ...i, is_available: !next } : i)),
+            }));
+        } finally {
+            setTogglingId(null);
+        }
+    };
+
     const handleEditItem = (item) => {
         setEditingItem(item);
         setShowItemForm(true);
@@ -248,7 +279,10 @@ export default function MenuManagementPage() {
                         </div>
                     ) : (
                         filteredItems.map(item => (
-                            <div key={item.id} className={styles.menuItem}>
+                            <div
+                                key={item.id}
+                                className={`${styles.menuItem} ${item.is_available === false ? styles.soldOut : ''}`}
+                            >
                                 <div className={styles.imageContainer}>
                                     {item.image ? (
                                         <img src={item.image} alt={item.name} />
@@ -278,6 +312,21 @@ export default function MenuManagementPage() {
                                     )}
                                 </div>
                                 <div className={styles.itemActions}>
+                                    {/* Sold-out is the one thing the floor changes mid-service,
+                                        so it's a single tap here rather than a trip through the
+                                        item form. */}
+                                    <button
+                                        className={`${styles.availabilityBtn} ${item.is_available === false ? styles.availabilityOff : ''}`}
+                                        onClick={() => handleToggleAvailability(item)}
+                                        disabled={togglingId === item.id}
+                                        title={item.is_available === false ? 'Mark available' : 'Mark sold out'}
+                                    >
+                                        {togglingId === item.id
+                                            ? <Loader2 size={15} className={styles.spin} />
+                                            : item.is_available === false
+                                                ? <><EyeOff size={15} />Sold out</>
+                                                : <><Eye size={15} />Available</>}
+                                    </button>
                                     <button
                                         className={styles.editBtn}
                                         onClick={() => handleEditItem(item)}

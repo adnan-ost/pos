@@ -135,7 +135,10 @@ export default function CustomerMenuPage() {
                 ) : (
                     <div className={styles.menuGrid}>
                         {filteredItems.map(item => (
-                            <article key={item.id} className={styles.menuItem}>
+                            <article
+                                key={item.id}
+                                className={`${styles.menuItem} ${item.is_available === false ? styles.soldOut : ''}`}
+                            >
                                 <div className={styles.imageContainer}>
                                     {item.image ? (
                                         <img src={item.image} alt={item.name} />
@@ -147,6 +150,12 @@ export default function CustomerMenuPage() {
                                     <span className={styles.categoryBadge}>
                                         {getCategoryName(item.categoryId)}
                                     </span>
+                                    {/* Told outright rather than removed from the menu: a guest
+                                        who asks for it should hear it before ordering, and a
+                                        dish that silently disappears looks like it never existed. */}
+                                    {item.is_available === false && (
+                                        <span className={styles.soldOutTag}>Sold out</span>
+                                    )}
                                 </div>
                                 <div className={styles.itemContent}>
                                     <div className={styles.itemHeader}>
