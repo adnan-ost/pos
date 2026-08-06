@@ -10,13 +10,24 @@ import { Save, Loader2, CreditCard, Building, MapPin, CheckCircle2, AlertTriangl
 const MAX_NAME = 25
 const MAX_CITY = 15
 
-const EMPTY = { merchant_name: '', merchant_city: '', raast_id: '', qr_enabled: true }
+const EMPTY = {
+    merchant_name: '',
+    merchant_city: '',
+    raast_id: '',
+    qr_enabled: true,
+    // Stored as a fraction; the field below is edited as a percentage.
+    tax_rate: 0.16,
+    tax_label: 'GST',
+}
 
 export default function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState({ type: '', text: '' })
     const [settings, setSettings] = useState(EMPTY)
+    // The tax field is edited as a percentage but stored as a fraction, so the
+    // operator's raw text lives here while they type.
+    const [taxPercentInput, setTaxPercentInput] = useState('')
     const [saved, setSaved] = useState(EMPTY)
 
     useEffect(() => {
@@ -25,8 +36,13 @@ export default function SettingsPage() {
             // Absent (migration not yet run) or null both mean "enabled", so the
             // toggle can't render as off against a database that has no opinion.
             next.qr_enabled = next.qr_enabled !== false
+            next.tax_rate = Number(next.tax_rate ?? EMPTY.tax_rate)
             setSettings(next)
             setSaved(next)
+            // Seeded here rather than in an effect: the percentage field keeps
+            // the operator's raw text while typing, so a half-entered "1" on the
+            // way to "16" isn't normalised under the cursor.
+            setTaxPercentInput(String(Number((next.tax_rate * 100).toFixed(2))))
             setLoading(false)
         })
     }, [])
@@ -39,9 +55,10 @@ export default function SettingsPage() {
     }, [message])
 
     const isDirty = useMemo(
-        () => ['merchant_name', 'merchant_city', 'raast_id']
+        () => ['merchant_name', 'merchant_city', 'raast_id', 'tax_label']
             .some(k => (settings[k] || '').trim() !== (saved[k] || '').trim())
-            || settings.qr_enabled !== saved.qr_enabled,
+            || settings.qr_enabled !== saved.qr_enabled
+            || Number(settings.tax_rate) !== Number(saved.tax_rate),
         [settings, saved]
     )
 
@@ -68,6 +85,19 @@ export default function SettingsPage() {
 
     const handleChange = (e) => {
         setSettings(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    }
+
+    /*
+     * Edited as a percentage, stored as a fraction. Kept as a separate string in
+     * state while typing so a half-entered "1" on the way to "16" doesn't get
+     * normalised to 0.01 under the operator's cursor.
+     */
+
+    const handleTaxRateChange = (e) => {
+        const raw = e.target.value
+        setTaxPercentInput(raw)
+        const percent = Math.min(Math.max(Number(raw) || 0, 0), 100)
+        setSettings(prev => ({ ...prev, tax_rate: percent / 100 }))
     }
 
     if (loading) {
@@ -153,6 +183,8 @@ export default function SettingsPage() {
                     {/* Explicit value: an unchecked checkbox submits nothing, which
                         the action can't tell apart from a missing field. */}
                     <input type="hidden" name="qr_enabled" value={settings.qr_enabled ? 'true' : 'false'} />
+                    {/* The visible field is a percentage; the stored value is the fraction. */}
+                    <input type="hidden" name="tax_rate" value={settings.tax_rate ?? 0.16} />
                     <div className="grid gap-6 md:grid-cols-2">
                         <div>
                             <div className="flex items-baseline justify-between mb-1.5">
@@ -204,6 +236,46 @@ export default function SettingsPage() {
                                 />
                             </div>
                             <p className="mt-1.5 text-xs text-gray-500">Defaults to Islamabad if left empty.</p>
+                        </div>
+
+                        <div>
+                            <label htmlFor="tax_label" className="block text-sm font-medium text-gray-300 mb-1.5">
+                                Tax name
+                            </label>
+                            <input
+                                id="tax_label"
+                                type="text"
+                                name="tax_label"
+                                value={settings.tax_label || ''}
+                                onChange={handleChange}
+                                maxLength={16}
+                                autoComplete="off"
+                                className={fieldClass.replace('pl-10', 'pl-4')}
+                                placeholder="GST"
+                            />
+                            <p className="mt-1.5 text-xs text-gray-500">Shown on the receipt tax line.</p>
+                        </div>
+
+                        <div>
+                            <label htmlFor="tax_rate_percent" className="block text-sm font-medium text-gray-300 mb-1.5">
+                                Tax rate (%)
+                            </label>
+                            <input
+                                id="tax_rate_percent"
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                inputMode="decimal"
+                                value={taxPercentInput}
+                                onChange={handleTaxRateChange}
+                                autoComplete="off"
+                                className={fieldClass.replace('pl-10', 'pl-4')}
+                                placeholder="16"
+                            />
+                            <p className="mt-1.5 text-xs text-gray-500">
+                                Applies to new orders only — past bills keep the tax they were charged.
+                            </p>
                         </div>
 
                         <div className="md:col-span-2">

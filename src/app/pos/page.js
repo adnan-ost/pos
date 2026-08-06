@@ -3,10 +3,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import styles from './pos.module.css';
 import {
     getMenuItems, getCategories, addOrder, getModifiers, getWaiters,
-    getOpenTabs, appendRoundToOrder, settleOrder
+    getOpenTabs, appendRoundToOrder, settleOrder, getTaxRate, findCustomerByPhone
 } from '@/lib/supabaseDb';
 import { createClient } from '@/lib/supabase/client';
-import { calcTotals, itemRound } from '@/lib/orderTotals';
+import { calcTotals, itemRound, DEFAULT_TAX_RATE } from '@/lib/orderTotals';
 import { getOrderNumber, formatOrderDate } from '@/lib/orderDisplay';
 
 import ModifierModal from '@/components/POS/ModifierModal';
@@ -17,7 +17,7 @@ import { useRole } from '@/components/Layout/AppLayout';
 
 import {
     Soup, Flame, Utensils, Cookie, GlassWater, Plus, CirclePlus,
-    Search, Banknote, CreditCard, X, Minus, UserRound, Armchair,
+    Search, Banknote, CreditCard, X, Minus, UserRound, Armchair, Phone, MapPin,
     UtensilsCrossed, ShoppingBag, Bike, Loader2, Layers, Receipt, Send
 } from 'lucide-react';
 
@@ -61,6 +61,7 @@ export default function POSPage() {
     const [openTabs, setOpenTabs] = useState([]);
     const [showTabs, setShowTabs] = useState(false);
     const [activeTabId, setActiveTabId] = useState(null);
+    const [pendingInvoiceNo, setPendingInvoiceNo] = useState(null);
 
     // Order details
     const [waiters, setWaiters] = useState([]);
@@ -68,6 +69,18 @@ export default function POSPage() {
     const [tableNumber, setTableNumber] = useState('');
     const [orderType, setOrderType] = useState('dine-in');
     const [includeTax, setIncludeTax] = useState(true);
+    const [taxRate, setTaxRate] = useState(DEFAULT_TAX_RATE);
+
+    // Discount on the bill being paid
+    const [discountMode, setDiscountMode] = useState('amount'); // 'amount' | 'percent'
+    const [discountValue, setDiscountValue] = useState('');
+    const [discountReason, setDiscountReason] = useState('');
+
+    // Who the order is for. Needed for delivery, useful for takeaway callbacks.
+    const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [customerAddress, setCustomerAddress] = useState('');
+    const [customerFound, setCustomerFound] = useState(false);
 
     // Load menu data from Supabase
     useEffect(() => {
@@ -94,6 +107,9 @@ export default function POSPage() {
         };
         loadData();
         getWaiters().then(setWaiters);
+        // Rate comes from store_settings so it survives a rate change without a
+        // deploy; getTaxRate falls back to the default if it can't be read.
+        getTaxRate().then(setTaxRate);
     }, []);
 
     const loadTabs = useCallback(async () => {
@@ -203,26 +219,73 @@ export default function POSPage() {
      * Three amounts matter once a tab is in play: what is already on it, what
      * this round adds, and the bill the customer will actually pay.
      */
-    const roundTotals = useMemo(() => calcTotals(cart, includeTax), [cart, includeTax]);
+    const discountAmount = useMemo(() => {
+        const value = Number(discountValue) || 0;
+        if (value <= 0) return 0;
+        // Percentages are an input convenience; what gets stored and charged is
+        // always the resulting rupee amount.
+        if (discountMode === 'percent') {
+            const base = [...(tab?.items || []), ...cart]
+                .reduce((sum, i) => sum + i.price * i.qty, 0);
+            return Math.round(base * Math.min(value, 100) / 100);
+        }
+        return Math.round(value);
+    }, [discountValue, discountMode, tab, cart]);
+
+    const priceOpts = useMemo(() => ({ taxRate }), [taxRate]);
+
+    // The round on its own is never discounted — a discount applies to the bill
+    // being paid, and applying it here as well would double-count it.
+    const roundTotals = useMemo(() => calcTotals(cart, includeTax, priceOpts), [cart, includeTax, priceOpts]);
     const tabTotals = useMemo(
-        () => calcTotals(tab?.items || [], includeTax),
-        [tab, includeTax]
+        () => calcTotals(tab?.items || [], includeTax, priceOpts),
+        [tab, includeTax, priceOpts]
     );
     const billItems = useMemo(() => [...(tab?.items || []), ...cart], [tab, cart]);
-    const billTotals = useMemo(() => calcTotals(billItems, includeTax), [billItems, includeTax]);
+    const billTotals = useMemo(
+        () => calcTotals(billItems, includeTax, { ...priceOpts, discount: discountAmount }),
+        [billItems, includeTax, priceOpts, discountAmount]
+    );
+
+    /*
+     * calcTotals hands back `taxable` for display; the orders table has no such
+     * column, and `discount` only exists once migration 11 has run, so writes
+     * are narrowed to the columns that are actually there.
+     */
+    const billColumns = (totals) => ({
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        total: totals.total,
+        ...(totals.discount > 0 && { discount: totals.discount }),
+    });
+
+    const newInvoiceNumber = () => `FBR-${Date.now().toString().slice(-6)}`;
+
+    // "16%" from a 0.16 rate, without a trailing ".00" on whole percentages
+    const taxPercentLabel = `${Number((taxRate * 100).toFixed(2))}%`;
 
     const nextRound = (tab?.round_count || 0) + 1;
     const selectedWaiter = waiters.find(w => w.id === waiterId);
     const canSettle = Boolean(tab) && cart.length === 0;
 
-    // Shown in the receipt: the whole bill for a tab, just the cart otherwise
-    const receiptTotals = tab ? billTotals : roundTotals;
+    /*
+     * Shown in the receipt. billTotals covers both cases: with a tab it's the
+     * tab's lines plus anything unsent, and without one billItems is just the
+     * cart. Using roundTotals here would drop the discount from a pay-now bill.
+     */
+    const receiptTotals = billTotals;
 
     const orderDetails = () => ({
         table_number: orderType === 'dine-in' ? tableNumber.trim() || null : null,
         waiter_id: waiterId || null,
         // Denormalised so the ticket still names the server if staff change
-        waiter_name: selectedWaiter?.name || null
+        waiter_name: selectedWaiter?.name || null,
+        customer_name: customerName.trim() || null,
+        customer_phone: customerPhone.trim() || null,
+        // Only meaningful for delivery, and stored on the order rather than only
+        // on the customer: people move, and a past delivery should still say
+        // where it actually went.
+        customer_address: orderType === 'delivery' ? customerAddress.trim() || null : null
     });
 
     const clearOrderFields = () => {
@@ -231,6 +294,34 @@ export default function POSPage() {
         setTableNumber('');
         setWaiterId('');
         setOrderType('dine-in');
+        setDiscountValue('');
+        setDiscountReason('');
+        setDiscountMode('amount');
+        setCustomerName('');
+        setCustomerPhone('');
+        setCustomerAddress('');
+        setCustomerFound(false);
+    };
+
+    /*
+     * Prefill a returning caller from their phone number. Deliberately manual
+     * rather than firing on every keystroke: a lookup per digit is a query per
+     * digit, and the operator knows when they've finished typing.
+     */
+    const lookupCustomer = async () => {
+        const phone = customerPhone.trim();
+        if (!phone) return;
+
+        const found = await findCustomerByPhone(phone);
+        if (found) {
+            setCustomerName(found.name === 'Walk-in' ? '' : found.name || '');
+            if (found.address) setCustomerAddress(found.address);
+            setCustomerFound(true);
+            setNotice(`Found ${found.name} — ${found.total_orders || 0} previous orders.`);
+        } else {
+            setCustomerFound(false);
+            setNotice('No previous orders for that number.');
+        }
     };
 
     const attachTab = (target, mode = null) => {
@@ -239,6 +330,14 @@ export default function POSPage() {
         setTableNumber(target.table_number || '');
         setWaiterId(target.waiter_id || '');
         setIncludeTax(target.include_tax ?? true);
+        setCustomerName(target.customer_name || '');
+        setCustomerPhone(target.customer_phone || '');
+        setCustomerAddress(target.customer_address || '');
+        // A tab opened before invoice numbers were stored needs one minted at
+        // settle time; one that already has a number keeps it.
+        if (mode === 'settle' && !target.invoice_number) {
+            setPendingInvoiceNo(newInvoiceNumber());
+        }
         setShowTabs(false);
         setReceiptMode(mode);
     };
@@ -262,6 +361,9 @@ export default function POSPage() {
 
     const handleCheckout = () => {
         if (cart.length === 0) return;
+        // Fixed now rather than at print time so the number stored on the order
+        // is the number on the paper, and a reprint is the same document.
+        setPendingInvoiceNo(newInvoiceNumber());
         setReceiptMode('pay-now');
     };
 
@@ -271,7 +373,9 @@ export default function POSPage() {
         try {
             await addOrder({
                 items: cart.map(item => ({ ...item, round: 1 })),
-                ...roundTotals,
+                ...billColumns(billTotals),
+                discount_reason: discountAmount > 0 ? discountReason.trim() || null : null,
+                invoice_number: pendingInvoiceNo,
                 include_tax: includeTax,
                 order_type: orderType,
                 ...orderDetails(),
@@ -297,7 +401,7 @@ export default function POSPage() {
         try {
             const created = await addOrder({
                 items: cart.map(item => ({ ...item, round: 1 })),
-                ...roundTotals,
+                ...billColumns(billTotals),
                 include_tax: includeTax,
                 order_type: orderType,
                 ...orderDetails(),
@@ -340,7 +444,13 @@ export default function POSPage() {
         if (!tab) return;
         setIsSending(true);
         try {
-            await settleOrder(tab.id, { paymentMode, includeTax });
+            await settleOrder(tab.id, {
+                paymentMode,
+                includeTax,
+                discount: discountAmount,
+                discountReason: discountAmount > 0 ? discountReason.trim() || null : null,
+                invoiceNumber: pendingInvoiceNo,
+            });
             await loadTabs();
             clearOrderFields();
             setReceiptMode(null);
@@ -378,7 +488,9 @@ export default function POSPage() {
                     cart={receiptMode === 'settle' ? tab.items : cart}
                     totals={receiptTotals}
                     includeTax={includeTax}
-                    invoiceNumber={tab ? `FBR-${getOrderNumber(tab)}` : undefined}
+                    /* A tab already settled once keeps its stored number so a
+                       reprint matches the original paper. */
+                    invoiceNumber={tab?.invoice_number || pendingInvoiceNo || undefined}
                     meta={tab ? {
                         orderNumber: getOrderNumber(tab),
                         table: tab.table_number,
@@ -604,6 +716,61 @@ export default function POSPage() {
                             </label>
                         )}
                     </div>
+
+                    {/* Customer details. Optional for dine-in, but delivery has
+                        nowhere to send the food without them. */}
+                    {orderType !== 'dine-in' && (
+                        <div className={styles.detailsRow}>
+                            <label className={styles.field}>
+                                <span className={styles.fieldLabel}>
+                                    <Phone size={14} aria-hidden="true" />
+                                    Phone
+                                    {customerFound && <span className={styles.returningTag}>returning</span>}
+                                </span>
+                                <div className={styles.phoneRow}>
+                                    <input
+                                        type="tel"
+                                        inputMode="tel"
+                                        className={styles.fieldInput}
+                                        placeholder="03xx xxxxxxx"
+                                        value={customerPhone}
+                                        onChange={(e) => { setCustomerPhone(e.target.value); setCustomerFound(false); }}
+                                        onBlur={lookupCustomer}
+                                    />
+                                </div>
+                            </label>
+
+                            <label className={styles.field}>
+                                <span className={styles.fieldLabel}>
+                                    <UserRound size={14} aria-hidden="true" />
+                                    Name
+                                </span>
+                                <input
+                                    type="text"
+                                    className={styles.fieldInput}
+                                    placeholder="Customer name"
+                                    value={customerName}
+                                    onChange={(e) => setCustomerName(e.target.value)}
+                                />
+                            </label>
+                        </div>
+                    )}
+
+                    {orderType === 'delivery' && (
+                        <label className={`${styles.field} ${styles.fieldWide}`}>
+                            <span className={styles.fieldLabel}>
+                                <MapPin size={14} aria-hidden="true" />
+                                Delivery address
+                            </span>
+                            <textarea
+                                className={styles.fieldInput}
+                                rows={2}
+                                placeholder="House / street / area"
+                                value={customerAddress}
+                                onChange={(e) => setCustomerAddress(e.target.value)}
+                            />
+                        </label>
+                    )}
                 </div>
 
                 <div className={styles.cartItems}>
@@ -707,8 +874,53 @@ export default function POSPage() {
                             checked={includeTax}
                             onChange={(e) => setIncludeTax(e.target.checked)}
                         />
-                        <span>Include FBR Tax (16%)</span>
+                        <span>Include FBR Tax ({taxPercentLabel})</span>
                     </label>
+
+                    {/* Discount. Amount or percent, with a reason, because a
+                        discount nobody can account for later is how a till
+                        quietly leaks money. */}
+                    <div className={styles.discountBlock}>
+                        <div className={styles.discountRow}>
+                            <div className={styles.discountModes}>
+                                <button
+                                    type="button"
+                                    className={`${styles.discountMode} ${discountMode === 'amount' ? styles.activeMode : ''}`}
+                                    onClick={() => setDiscountMode('amount')}
+                                >
+                                    Rs.
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${styles.discountMode} ${discountMode === 'percent' ? styles.activeMode : ''}`}
+                                    onClick={() => setDiscountMode('percent')}
+                                >
+                                    %
+                                </button>
+                            </div>
+                            <input
+                                type="number"
+                                min="0"
+                                max={discountMode === 'percent' ? 100 : undefined}
+                                step="1"
+                                inputMode="numeric"
+                                className={styles.discountInput}
+                                placeholder="Discount"
+                                value={discountValue}
+                                onChange={(e) => setDiscountValue(e.target.value)}
+                            />
+                        </div>
+                        {discountAmount > 0 && (
+                            <input
+                                type="text"
+                                className={styles.discountReason}
+                                placeholder="Reason (staff meal, comp, manager)"
+                                value={discountReason}
+                                onChange={(e) => setDiscountReason(e.target.value)}
+                                maxLength={60}
+                            />
+                        )}
+                    </div>
 
                     {tab && (
                         <>
@@ -729,8 +941,14 @@ export default function POSPage() {
                         <span>Subtotal</span>
                         <span>Rs. {receiptTotals.subtotal.toLocaleString()}</span>
                     </div>
+                    {receiptTotals.discount > 0 && (
+                        <div className={`${styles.summaryRow} ${styles.discountSummary}`}>
+                            <span>Discount{discountReason.trim() ? ` · ${discountReason.trim()}` : ''}</span>
+                            <span>− Rs. {receiptTotals.discount.toLocaleString()}</span>
+                        </div>
+                    )}
                     <div className={styles.summaryRow}>
-                        <span>Tax (16%)</span>
+                        <span>Tax ({taxPercentLabel})</span>
                         <span>Rs. {receiptTotals.tax.toLocaleString()}</span>
                     </div>
                     <div className={`${styles.summaryRow} ${styles.totalRow}`}>

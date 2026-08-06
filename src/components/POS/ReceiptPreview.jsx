@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { generateEMVCoPayload } from '@/lib/emvco';
+import { DEFAULT_TAX_RATE } from '@/lib/orderTotals';
 import { getSettings } from '@/app/settings/actions';
 import { formatDateTime } from '@/lib/timeFormat';
 import styles from './ReceiptPreview.module.css';
@@ -28,6 +29,11 @@ const ReceiptPreview = ({
     // there has to be an identifier to encode. `qr_enabled` is read as true
     // when absent so a database without the column behaves as it did before.
     const qrAllowed = settings?.qr_enabled !== false && Boolean(settings?.raast_id);
+
+    // Settings may not have loaded on first paint, so both fall back rather than
+    // rendering "undefined" on a document a customer keeps.
+    const taxLabel = settings?.tax_label || 'GST';
+    const taxPercent = `${Number(((settings?.tax_rate ?? DEFAULT_TAX_RATE) * 100).toFixed(2))}%`;
 
     // Built inside a try because the encoder rejects values it cannot express in
     // a two-digit length rather than silently truncating an account id. This runs
@@ -117,9 +123,17 @@ const ReceiptPreview = ({
                             <span>Sub Total:</span>
                             <span>Rs. {totals.subtotal.toLocaleString()}</span>
                         </div>
+                        {totals.discount > 0 && (
+                            <div className={styles.row}>
+                                <span>Discount:</span>
+                                <span>− Rs. {totals.discount.toLocaleString()}</span>
+                            </div>
+                        )}
                         {includeTax && (
                             <div className={styles.row}>
-                                <span className="font-bold">GST (16%):</span>
+                                {/* Label and rate come from settings, so a rate change
+                                    doesn't leave the receipt asserting the old one. */}
+                                <span className="font-bold">{taxLabel} ({taxPercent}):</span>
                                 <span>Rs. {totals.tax.toLocaleString()}</span>
                             </div>
                         )}

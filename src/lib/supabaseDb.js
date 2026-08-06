@@ -558,7 +558,7 @@ export const appendRoundToOrder = async (orderId, newItems, details = {}) => {
  * kitchen. A tab whose food is already out is done, so it also leaves the
  * kitchen board; one still being cooked stays there for the pass.
  */
-export const settleOrder = async (orderId, { paymentMode = 'cash', includeTax, discount, discountReason } = {}) => {
+export const settleOrder = async (orderId, { paymentMode = 'cash', includeTax, discount, discountReason, invoiceNumber } = {}) => {
     const order = await getOrderById(orderId);
 
     if (order.payment_status === 'paid') {
@@ -579,6 +579,9 @@ export const settleOrder = async (orderId, { paymentMode = 'cash', includeTax, d
             ...totalsColumns(totals),
             include_tax: taxed,
             ...(discountReason !== undefined && { discount_reason: discountReason }),
+            // Only stamped if the bill doesn't already carry one, so settling a
+            // tab twice can't renumber a receipt that was already printed.
+            ...(invoiceNumber && !order.invoice_number && { invoice_number: invoiceNumber }),
             payment_status: 'paid',
             payment_mode: paymentMode,
             paid_at: now,
