@@ -16,8 +16,18 @@ choose one, so:
    → **Set as default**.
 2. Turn off "Let Windows manage my default printer", or Windows will silently
    reassign it to whatever was used last.
-3. In the printer's own properties, set the paper/roll to **80mm**. The driver
-   has the final say on the physical roll and on any scaling.
+3. Printing preferences → **Paper size** → **`80 x 3276mm`** (may appear as
+   `80(72.1) x 3276mm`, or as *Roll* / *Continuous*).
+
+   **Do not skip this.** 3276mm is the ESC/POS maximum page length, and a page
+   that long cannot paginate — so there is never a mid-bill page break for the
+   cutter to act on, and each receipt gets exactly one cut at the end. With a
+   short paper size a long bill comes out in several pieces. Confirmed on a Black
+   Copper BC858CG1.
+
+   A thermal printer only feeds what it prints, so the long page costs no paper.
+
+4. Set scaling to **100% / Actual size** — never "Fit to page".
 
 The app measures each receipt and asks for a page exactly that tall, so it should
 print as one continuous strip with no page break and no blank roll at the end.
@@ -188,17 +198,12 @@ family as XPrinter / Gainscha "POS-80"), so it behaves like those. Labels vary a
 little between driver versions — if a name below doesn't match exactly, look for
 the nearest equivalent.
 
-**Try this first.** These drivers almost always already include a continuous paper
-size, and picking it is usually the whole fix:
+**The paper size is the fix here** — `80 x 3276mm`, as in step 3 of the setup.
+That was confirmed on a BC858CG1: with it selected, a long bill prints as one
+strip with a single cut at the end. If you've landed in this section, check that
+first.
 
-> Printing preferences → **Paper size** → look for **`80 x 3276mm`** (may appear as
-> `80(72.1) x 3276mm`, or as *Roll* / *Continuous*)
-
-3276mm is the ESC/POS maximum page length. Nothing can paginate inside it, so
-there is no mid-bill page break for the cutter to act on — and no custom form to
-create.
-
-**Then the cutter.** On this driver family it usually sits in one of:
+**If it's already set and bills still come out in pieces**, then it's the cutter. On this driver family it usually sits in one of:
 
 - Printing preferences → **Advanced** → *Cutter* / *Paper Cut*
 - Printing preferences → a **Peripheral** or **Device Settings** tab
