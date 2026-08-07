@@ -38,7 +38,7 @@ What each part is for:
 | Flag | Why |
 |---|---|
 | `--kiosk-printing` | Prints straight to the default printer, no preview, no dialog |
-| `--user-data-dir="C:\pos-profile"` | A profile of its own, so print settings and the login session can't be disturbed by ordinary browsing on the same machine |
+| `--user-data-dir="C:\pos-profile"` | **Forces a separate Chrome process.** This is what makes the flag take effect at all — see below |
 | `--app=<url>` | Chromeless window — no address bar or tabs for staff to wander out of |
 
 Add `--start-fullscreen` if you want it edge to edge. Use `--kiosk` for true
@@ -66,6 +66,70 @@ Check on that first receipt:
 
 Ring up a large order (15+ lines) once as well. A long receipt is where clipping
 shows up, and it's better to find that now than mid-service.
+
+## "I still get the print dialog"
+
+Almost always one of these, in order of likelihood.
+
+### Chrome was already running
+
+This is the big one. **Chrome only reads command-line flags when it starts a new
+process.** If any Chrome window is already open, launching the shortcut just asks
+that existing process to open a tab, and every flag is silently discarded — no
+error, it simply behaves normally.
+
+`--user-data-dir` is what avoids this, because a different profile directory
+forces a genuinely separate process. If you tried the flag without it, that's the
+explanation.
+
+To be certain: close **every** Chrome window, check Task Manager for leftover
+`chrome.exe` processes and end them, then launch the shortcut.
+
+### Confirm the flags actually arrived
+
+In the kiosk window, open a new tab and go to:
+
+```
+chrome://version
+```
+
+Look at the **Command Line** row. `--kiosk-printing` must be listed there. If it
+isn't, Chrome never received it and the problem is the shortcut, not the printer.
+
+### The shortcut is malformed
+
+Flags go *after* the closing quote of the executable path, separated by spaces:
+
+```
+"C:\...\chrome.exe" --kiosk-printing --user-data-dir="C:\pos-profile" --app=https://...
+```
+
+A flag inside the quotes becomes part of the path and Windows ignores it.
+
+### You typed the URL into an ordinary window
+
+The kiosk window is the only one that prints silently. A normal Chrome window
+pointed at the same URL will always show the dialog — that's expected.
+
+## "The receipt got cut in half"
+
+The app measures each receipt and asks for a page exactly that tall, but **the
+printer driver has the final say**. If the driver's paper is a fixed length
+(often 80 × 297mm, sometimes shorter), anything longer is split across pages —
+which is what a receipt torn off after the payment QR looks like.
+
+Fix it in the driver, not the app:
+
+1. Control Panel → Devices and Printers → right-click the printer → **Printing
+   preferences**.
+2. Set the paper size to the roll or a **continuous / receipt** option if the
+   driver offers one. If it only offers fixed sizes, create a custom size 80mm
+   wide and as long as it allows (e.g. 80 × 1000mm).
+3. Set scaling to **100% / Actual size**. Any "fit to page" setting will shrink
+   the text and can also force a break.
+
+Then reprint a long order from the Orders screen (🖨 on the row) to check,
+rather than ringing up another sale.
 
 ## Turning it off
 

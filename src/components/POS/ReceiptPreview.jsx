@@ -77,9 +77,13 @@ const ReceiptPreview = ({
                 <div id="receipt-print-root" className={styles.receiptContainer}>
                     {/* Header */}
                     <div className={styles.header}>
-                        <div className={styles.logo}>
-                            <img src="/flames-by-the-indus-logo-for-receipt.svg" alt="Flames by the Indus" style={{ height: '60px', marginBottom: '0.5rem' }} />
-                        </div>
+                        {/* Sized and centred from CSS rather than inline, so the
+                            print rules can reach it */}
+                        <img
+                            src="/flames-by-the-indus-logo-for-receipt.svg"
+                            alt="Flames by the Indus"
+                            className={styles.logoImg}
+                        />
                         <p>{settings?.merchant_name || 'Flames by the Indus'} - {settings?.merchant_city || 'Islamabad'}</p>
                         <p>NTN: 1234567-8 | STRN: 1234567890123</p>
                         {includeTax && (
@@ -162,18 +166,11 @@ const ReceiptPreview = ({
                     {/* Payment QR Code */}
                     {qrPayload && (
                         <div className={styles.qrSection}>
-                            <div className="flex flex-col items-center justify-center p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg my-4">
-                                <QRCodeSVG
-                                    value={qrPayload}
-                                    size={150}
-                                    level="M"
-                                    includeMargin={true}
-                                />
-                                <div className="mt-2 text-center">
-                                    <p className="font-bold text-sm text-gray-800">Scan to Pay with Raast / JazzCash</p>
-                                    <p className="text-xs text-gray-500">Amount: Rs. {totals.total.toLocaleString()}</p>
-                                </div>
-                            </div>
+                            {/* The dashed box and its padding cost ~15mm of roll and
+                                earn nothing on paper, so both are gone. */}
+                            <QRCodeSVG value={qrPayload} size={104} level="M" />
+                            <p className={styles.qrCaption}>Scan to Pay with Raast / JazzCash</p>
+                            <p>Amount: Rs. {totals.total.toLocaleString()}</p>
                         </div>
                     )}
 
@@ -183,9 +180,7 @@ const ReceiptPreview = ({
                         till with a flaky connection, and this has to reach paper. */}
                     {includeTax && (
                         <div className={styles.qrSection}>
-                            <div className={styles.qrCode}>
-                                <QRCodeSVG value="FBR-VERIFY-INVOICE" size={92} level="M" />
-                            </div>
+                            <QRCodeSVG value="FBR-VERIFY-INVOICE" size={84} level="M" />
                             <p>Verify this invoice via FBR Tax Asaan App</p>
                         </div>
                     )}

@@ -38,26 +38,46 @@
     padding: 2mm 3mm;
     overflow-y: auto;
     font-family: 'Courier New', Courier, monospace;
-    /* px, not rem: this must not move with a user's root font size, or the
-       measured height stops matching the printed height. */
-    font-size: 11px;
-    line-height: 1.35;
+    /*
+     * px, not rem: this must not move with a user's root font size, or the
+     * measured height stops matching the printed height.
+     *
+     * 12px with a little weight, not 11px regular: a thermal head burns thin
+     * strokes unevenly, and 11px Courier came off the roll grey and hard to
+     * read. The extra pixel and the 500 weight are what make it legible.
+     */
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: #000;
 }
 
 .header {
     text-align: center;
-    margin-bottom: 1rem;
+    margin-bottom: 3mm;
 }
 
-.logo h1 {
-    font-size: 1.5rem;
-    color: black;
-    margin-bottom: 0.5rem;
+.logoImg {
+    /* block + auto margins, so it centres even when its natural width is wider
+       than the 74mm printable area (which is why it looked left-aligned) */
+    display: block;
+    margin: 0 auto 2mm;
+    height: 42px;
+    max-width: 100%;
+
+    /*
+     * The wordmark's flame is orange. A monochrome thermal head renders that as
+     * a pale dither, so it came out faint. brightness(0) collapses every visible
+     * pixel to solid black while leaving transparency alone.
+     */
+    filter: brightness(0);
 }
 
 .header p {
-    font-size: 0.8rem;
-    margin-bottom: 0.25rem;
+    /* px like everything else here: 0.8rem resolves against the root to 12.8px,
+       which is wider than the base and nearly overruns the NTN line. */
+    font-size: 11px;
+    margin-bottom: 0.5mm;
 }
 
 .fbrHeader {
@@ -73,6 +93,9 @@
 
 .fbrLogo {
     height: 20px;
+    /* Same reason as the wordmark: the FBR mark is blue and came off the roll as
+       a pale smudge. Collapse it to solid black. */
+    filter: brightness(0);
 }
 
 .meta {
@@ -101,10 +124,13 @@
     text-align: left;
     border-bottom: 1px solid black;
     padding-bottom: 0.25rem;
+    font-weight: 700;
 }
 
 .items td {
-    padding: 0.25rem 0;
+    padding: 0.2rem 0;
+    /* Dish names were the least readable thing on the roll */
+    font-weight: 600;
 }
 
 .right {
@@ -112,9 +138,9 @@
 }
 
 .totals {
-    margin-top: 1rem;
+    margin-top: 3mm;
     border-top: 1px dashed black;
-    padding-top: 0.5rem;
+    padding-top: 2mm;
 }
 
 .row {
@@ -125,48 +151,43 @@
 
 .grandTotal {
     font-weight: bold;
-    font-size: 1.1rem;
+    font-size: 15px;
     margin-top: 0.5rem;
     border-top: 1px solid black;
     padding-top: 0.5rem;
 }
 
 .qrSection {
-    margin-top: 1.5rem;
+    /* Was 1.5rem top plus a padded, bordered wrapper; that combination is what
+       pushed a 12-line receipt past the printer's page and split it. */
+    margin-top: 3mm;
     text-align: center;
 }
 
-.qrPlaceholder {
-    width: 100px;
-    height: 100px;
-    background: #eee;
-    margin: 0 auto 0.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid black;
-    font-size: 0.7rem;
+/*
+ * Tailwind's preflight sets `svg { display: block }`, so the QR ignores the
+ * text-align above and sits hard against the left margin. Auto margins are what
+ * actually centre a block — same reason .logoImg needs them.
+ */
+.qrSection svg {
+    display: block;
+    margin: 0 auto;
 }
 
-.qrCode {
-    width: 100px;
-    height: 100px;
-    margin: 0 auto 0.5rem;
-    border: 1px solid black;
-    /* Centres the inline SVG that replaced the remote image */
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.qrCaption {
+    font-weight: 700;
+    margin-top: 1mm;
 }
 
 .qrSection p {
-    font-size: 0.7rem;
+    font-size: 10px;
+    margin: 0;
 }
 
 .footer {
     text-align: center;
-    margin-top: 1rem;
-    font-size: 0.8rem;
+    margin-top: 3mm;
+    font-size: 11px;
 }
 
 .actions {
@@ -238,8 +259,4 @@
         display: none;
     }
 
-    /* Drop the QR's on-screen border; the code itself prints fine without it */
-    .qrCode {
-        border: none;
-    }
 }
