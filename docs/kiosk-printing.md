@@ -181,7 +181,38 @@ preferences**, then look under a tab like *Document Settings*, *Paper* or
 *Advanced*. The exact wording varies by brand (XPrinter, Epson TM, Black Copper,
 Rongta all name it differently).
 
-### Paper length
+### Black Copper BC858CG1 specifically
+
+Black Copper ships a rebadged version of the common OEM 80mm POS driver (the same
+family as XPrinter / Gainscha "POS-80"), so it behaves like those. Labels vary a
+little between driver versions — if a name below doesn't match exactly, look for
+the nearest equivalent.
+
+**Try this first.** These drivers almost always already include a continuous paper
+size, and picking it is usually the whole fix:
+
+> Printing preferences → **Paper size** → look for **`80 x 3276mm`** (may appear as
+> `80(72.1) x 3276mm`, or as *Roll* / *Continuous*)
+
+3276mm is the ESC/POS maximum page length. Nothing can paginate inside it, so
+there is no mid-bill page break for the cutter to act on — and no custom form to
+create.
+
+**Then the cutter.** On this driver family it usually sits in one of:
+
+- Printing preferences → **Advanced** → *Cutter* / *Paper Cut*
+- Printing preferences → a **Peripheral** or **Device Settings** tab
+- Printer **Properties** (not Preferences) → **Device Settings**
+
+Set it to cut at the **end of the document / job**, not per page.
+
+**If the driver has no cutter option at all**, it's stored in the printer itself
+rather than the driver. Black Copper bundles a utility — usually called *Printer
+Test Tool* or *POS Printer Set Tool* — on the driver CD or their download page.
+Connect over USB, open it, and set the cut mode there; it writes to the printer's
+flash so it survives a reboot.
+
+### Paper length (if no continuous size is offered)
 
 The app asks for a page exactly as tall as the receipt, but that is only a
 request — Chrome can only use a paper size the driver actually offers, and the
