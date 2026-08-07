@@ -26,6 +26,7 @@ Run in order. Numbers reflect the order they were originally applied.
 | `10_qr_toggle.sql` | `store_settings.qr_enabled` — switch receipt QR printing on/off |
 | `11_pos_operations.sql` | Voids, discounts, invoice numbers, delivery address, configurable tax rate, order indexes |
 | `12_order_idempotency.sql` | `orders.client_request_id` + unique index — makes a retried checkout safe |
+| `13_auto_print.sql` | `store_settings.auto_print` — print the receipt when payment is taken |
 
 Two ordering constraints worth respecting if you ever rebuild:
 

@@ -21,8 +21,22 @@ const ReceiptPreview = ({
     // every render, the printed time drifted between preview and print.
     const [date] = useState(() => formatDateTime(new Date()));
 
+    /*
+     * `settingsLoaded` tracks the request finishing, not whether it returned
+     * anything. The merchant details, tax label and payment QR all come from
+     * here, so printing before it resolves puts out a receipt missing them —
+     * and a settled bill can't be reprinted with the QR added afterwards.
+     *
+     * Keyed on the request completing rather than on `settings` being non-null
+     * so a failed read still releases the button instead of disabling printing
+     * for good.
+     */
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
+
     useEffect(() => {
-        getSettings().then(setSettings);
+        getSettings()
+            .then(setSettings)
+            .finally(() => setSettingsLoaded(true));
     }, []);
 
     // Two independent gates: the QR has to be switched on in Settings, and
@@ -58,7 +72,9 @@ const ReceiptPreview = ({
     return (
         <div className={styles.overlay}>
             <div className={styles.modal}>
-                <div className={styles.receiptContainer}>
+                {/* Stable id, not a hashed module class: the print rules in
+                    globals.css key off it to show this subtree and nothing else. */}
+                <div id="receipt-print-root" className={styles.receiptContainer}>
                     {/* Header */}
                     <div className={styles.header}>
                         <div className={styles.logo}>
@@ -161,14 +177,15 @@ const ReceiptPreview = ({
                         </div>
                     )}
 
-                    {/* FBR QR Code - only show when tax is included */}
+                    {/* FBR QR Code - only show when tax is included.
+                        Rendered inline rather than fetched from an image host: a
+                        third-party request at print time is simply missing on a
+                        till with a flaky connection, and this has to reach paper. */}
                     {includeTax && (
                         <div className={styles.qrSection}>
-                            <img
-                                src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=FBR-VERIFY-INVOICE"
-                                alt="FBR QR Code"
-                                className={styles.qrCode}
-                            />
+                            <div className={styles.qrCode}>
+                                <QRCodeSVG value="FBR-VERIFY-INVOICE" size={92} level="M" />
+                            </div>
                             <p>Verify this invoice via FBR Tax Asaan App</p>
                         </div>
                     )}
@@ -178,8 +195,8 @@ const ReceiptPreview = ({
 
                 <div className={styles.actions}>
                     <button className={styles.cancelBtn} onClick={onClose} disabled={busy}>Back</button>
-                    <button className={styles.printBtn} onClick={onPrint} disabled={busy}>
-                        {busy ? 'Saving…' : (printLabel || 'Print & Close')}
+                    <button className={styles.printBtn} onClick={onPrint} disabled={busy || !settingsLoaded}>
+                        {busy ? 'Saving…' : !settingsLoaded ? 'Loading…' : (printLabel || 'Print & Close')}
                     </button>
                 </div>
             </div>

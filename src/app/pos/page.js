@@ -9,6 +9,8 @@ import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import { calcTotals, itemRound, DEFAULT_TAX_RATE } from '@/lib/orderTotals';
 import { getOrderNumber, formatOrderDate } from '@/lib/orderDisplay';
 import { loadCartDraft, saveCartDraft, clearCartDraft } from '@/lib/cartDraft';
+import { getSettings } from '@/app/settings/actions';
+import { printReceipt } from '@/lib/printReceipt';
 
 import ModifierModal from '@/components/POS/ModifierModal';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
@@ -81,6 +83,8 @@ export default function POSPage() {
     const [orderType, setOrderType] = useState('dine-in');
     const [includeTax, setIncludeTax] = useState(true);
     const [taxRate, setTaxRate] = useState(DEFAULT_TAX_RATE);
+    // Absent column reads as enabled, matching how qr_enabled degrades
+    const [autoPrint, setAutoPrint] = useState(true);
 
     // Discount on the bill being paid
     const [discountMode, setDiscountMode] = useState('amount'); // 'amount' | 'percent'
@@ -142,6 +146,7 @@ export default function POSPage() {
         // Rate comes from store_settings so it survives a rate change without a
         // deploy; getTaxRate falls back to the default if it can't be read.
         getTaxRate().then(setTaxRate);
+        getSettings().then(s => setAutoPrint(s?.auto_print !== false));
     }, []);
 
     const loadTabs = useCallback(async () => {
@@ -305,6 +310,25 @@ export default function POSPage() {
 
     const newInvoiceNumber = () => `FBR-${Date.now().toString().slice(-6)}`;
 
+    /*
+     * Sends the receipt on screen to the printer.
+     *
+     * Called after the save resolves and before the modal closes, which is the
+     * only correct order: printing first could hand a customer paper for an
+     * order that failed to store, and closing first unmounts the very thing
+     * being printed. That sequencing is safe because window.print() blocks
+     * within the current task, and React won't flush the state update that
+     * unmounts the receipt until the task finishes.
+     *
+     * With Chrome launched --kiosk-printing this goes straight to the default
+     * printer with no dialog. Without that flag it opens the normal print
+     * preview, which is the visible sign the terminal isn't set up yet.
+     */
+    const printIfEnabled = () => {
+        if (!autoPrint) return;
+        printReceipt();
+    };
+
     // "16%" from a 0.16 rate, without a trailing ".00" on whole percentages
     const taxPercentLabel = `${Number((taxRate * 100).toFixed(2))}%`;
 
@@ -434,6 +458,9 @@ export default function POSPage() {
                 payment_status: 'paid',
                 payment_mode: paymentMode
             });
+            // Stored, so it's safe to hand over paper. Before clearOrderFields,
+            // which unmounts the receipt being printed.
+            printIfEnabled();
             clearOrderFields();
             setReceiptMode(null);
             setNotice('Paid. Order sent to the kitchen.');
@@ -508,6 +535,7 @@ export default function POSPage() {
                 discountReason: discountAmount > 0 ? discountReason.trim() || null : null,
                 invoiceNumber: pendingInvoiceNo,
             });
+            printIfEnabled();
             await loadTabs();
             clearOrderFields();
             setReceiptMode(null);

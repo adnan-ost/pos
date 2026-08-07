@@ -10,6 +10,7 @@ import {
     cancelOrder, ORDERS_PAGE_SIZES
 } from '@/lib/supabaseDb';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
+import { printReceipt } from '@/lib/printReceipt';
 import { useRole } from '@/components/Layout/AppLayout';
 import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import {
@@ -774,7 +775,7 @@ export default function OrdersPage() {
                     role={role}
                     busy={false}
                     onClose={() => setReceiptOrder(null)}
-                    onPrint={() => window.print()}
+                    onPrint={printReceipt}
                 />
             )}
 

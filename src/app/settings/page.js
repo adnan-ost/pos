@@ -15,9 +15,43 @@ const EMPTY = {
     merchant_city: '',
     raast_id: '',
     qr_enabled: true,
+    auto_print: true,
     // Stored as a fraction; the field below is edited as a percentage.
     tax_rate: 0.16,
     tax_label: 'GST',
+}
+
+/*
+ * A labelled on/off row. Extracted because there are two of them now and the
+ * knob geometry is fiddly enough that stating it in one place is worth more than
+ * spelling out each row.
+ */
+function SettingSwitch({ label, hint, checked, onToggle }) {
+    return (
+        <div className="mb-6 flex items-center gap-4 p-4 rounded-lg bg-gray-800/40 border border-gray-700/50">
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-200">{label}</p>
+                <p className="mt-0.5 text-xs text-gray-400">{hint}</p>
+            </div>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={checked}
+                aria-label={label}
+                onClick={onToggle}
+                className={`relative flex-shrink-0 h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/40 ${checked ? 'bg-orange-600' : 'bg-gray-600'
+                    }`}
+            >
+                {/* Geometry stated outright rather than left to the knob's static
+                    position: inset 2px on both sides of a 44px track holding a
+                    20px knob leaves exactly 20px of travel. */}
+                <span
+                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                />
+            </button>
+        </div>
+    )
 }
 
 export default function SettingsPage() {
@@ -36,6 +70,7 @@ export default function SettingsPage() {
             // Absent (migration not yet run) or null both mean "enabled", so the
             // toggle can't render as off against a database that has no opinion.
             next.qr_enabled = next.qr_enabled !== false
+            next.auto_print = next.auto_print !== false
             next.tax_rate = Number(next.tax_rate ?? EMPTY.tax_rate)
             setSettings(next)
             setSaved(next)
@@ -58,6 +93,7 @@ export default function SettingsPage() {
         () => ['merchant_name', 'merchant_city', 'raast_id', 'tax_label']
             .some(k => (settings[k] || '').trim() !== (saved[k] || '').trim())
             || settings.qr_enabled !== saved.qr_enabled
+            || settings.auto_print !== saved.auto_print
             || Number(settings.tax_rate) !== Number(saved.tax_rate),
         [settings, saved]
     )
@@ -142,32 +178,19 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                <div className="mb-6 flex items-center gap-4 p-4 rounded-lg bg-gray-800/40 border border-gray-700/50">
-                    <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-200">Print payment QR on receipts</p>
-                        <p className="mt-0.5 text-xs text-gray-400">
-                            Turn off for card- or cash-only service. Your Raast ID is kept, so this can be switched
-                            back on without re-entering it.
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        role="switch"
-                        aria-checked={settings.qr_enabled}
-                        aria-label="Print payment QR on receipts"
-                        onClick={() => setSettings(prev => ({ ...prev, qr_enabled: !prev.qr_enabled }))}
-                        className={`relative flex-shrink-0 h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/40 ${settings.qr_enabled ? 'bg-orange-600' : 'bg-gray-600'
-                            }`}
-                    >
-                        {/* Geometry stated outright rather than left to the knob's
-                            static position: inset 2px on both sides of a 44px track
-                            holding a 20px knob leaves exactly 20px of travel. */}
-                        <span
-                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${settings.qr_enabled ? 'translate-x-5' : 'translate-x-0'
-                                }`}
-                        />
-                    </button>
-                </div>
+                <SettingSwitch
+                    label="Print payment QR on receipts"
+                    hint="Turn off for card- or cash-only service. Your Raast ID is kept, so this can be switched back on without re-entering it."
+                    checked={settings.qr_enabled}
+                    onToggle={() => setSettings(prev => ({ ...prev, qr_enabled: !prev.qr_enabled }))}
+                />
+
+                <SettingSwitch
+                    label="Print receipt automatically on payment"
+                    hint="Paper comes out as the sale is saved, with no extra tap. Turn off if the printer is jammed or out of roll — you can still reprint any order from the Orders screen."
+                    checked={settings.auto_print}
+                    onToggle={() => setSettings(prev => ({ ...prev, auto_print: !prev.auto_print }))}
+                />
 
                 {settings.qr_enabled && !hasRaastId && (
                     <div className="mb-6 flex items-start gap-3 p-4 rounded-lg bg-amber-900/15 border border-amber-800/40">
@@ -183,6 +206,7 @@ export default function SettingsPage() {
                     {/* Explicit value: an unchecked checkbox submits nothing, which
                         the action can't tell apart from a missing field. */}
                     <input type="hidden" name="qr_enabled" value={settings.qr_enabled ? 'true' : 'false'} />
+                    <input type="hidden" name="auto_print" value={settings.auto_print ? 'true' : 'false'} />
                     {/* The visible field is a percentage; the stored value is the fraction. */}
                     <input type="hidden" name="tax_rate" value={settings.tax_rate ?? 0.16} />
                     <div className="grid gap-6 md:grid-cols-2">

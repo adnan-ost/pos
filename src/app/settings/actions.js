@@ -33,6 +33,7 @@ export async function updateSettings(formData) {
     // an unchecked checkbox submits nothing at all, which is indistinguishable
     // from the field not being on the form.
     const qr_enabled = formData.get('qr_enabled') !== 'false'
+    const auto_print = formData.get('auto_print') !== 'false'
 
     // Clamped server-side too: the number input is a hint, not a guarantee, and a
     // rate above 1 would silently multiply every bill.
@@ -47,13 +48,13 @@ export async function updateSettings(formData) {
     if (existing) {
         const res = await supabase
             .from('store_settings')
-            .update({ merchant_name, merchant_city, raast_id, qr_enabled, tax_rate, tax_label, updated_at: new Date() })
+            .update({ merchant_name, merchant_city, raast_id, qr_enabled, auto_print, tax_rate, tax_label, updated_at: new Date() })
             .eq('id', existing.id)
         error = res.error
     } else {
         const res = await supabase
             .from('store_settings')
-            .insert({ merchant_name, merchant_city, raast_id, qr_enabled, tax_rate, tax_label })
+            .insert({ merchant_name, merchant_city, raast_id, qr_enabled, auto_print, tax_rate, tax_label })
         error = res.error
     }
 

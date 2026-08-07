@@ -192,3 +192,90 @@ h6 {
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
 }
+
+/*
+ * ===== Receipt printing (80mm thermal) =====
+ *
+ * Lives here rather than in the receipt's CSS module for two reasons: an id
+ * selector in a module gets hashed, and this has to override rules on ancestors
+ * the module can't reach (the fixed overlay, the modal's max-height).
+ *
+ * This @page rule is a fallback for a hand-pressed Ctrl+P. printReceipt() in
+ * src/lib/printReceipt.js measures the rendered receipt and injects an exact
+ * `size` later in the cascade, which is what normally applies.
+ *
+ * `size: 80mm auto` does NOT work: mixing a length with `auto` is invalid CSS,
+ * so Chrome drops the declaration and silently prints US Letter, paginating a
+ * long receipt. Verified empirically — the height has to be a real length.
+ */
+@page {
+  size: 80mm 297mm;
+  margin: 0;
+}
+
+@media print {
+  /*
+   * Hide everything, then re-show one subtree.
+   *
+   * visibility rather than display: the receipt sits inside a position: fixed
+   * overlay, and display:none on its ancestors would take the receipt with it.
+   * visibility is inherited but can be overridden on a descendant, which is
+   * exactly the behaviour needed here.
+   */
+  body * {
+    visibility: hidden;
+  }
+
+  #receipt-print-root,
+  #receipt-print-root * {
+    visibility: visible;
+  }
+
+  #receipt-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+
+    /* The on-screen modal scrolls; paper cannot. Without these a receipt longer
+       than the viewport is silently cut off at the bottom. */
+    max-height: none;
+    height: auto;
+    overflow: visible;
+
+    /*
+     * Padding, font size and line height are deliberately NOT set here — they
+     * come from the module and so are identical on screen. printReceipt()
+     * measures the on-screen receipt to size the page, and any difference
+     * between the two layouts becomes blank roll at the end of every receipt.
+     */
+    margin: 0;
+    box-sizing: border-box;
+
+    background: #fff;
+    color: #000;
+  }
+
+  /* Thermal printers are one colour; make sure nothing relies on a light grey */
+  #receipt-print-root * {
+    background: transparent !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    /* Keeps the QR solid black rather than dithered or dropped */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* A receipt is one continuous strip — never let it break mid-line */
+  #receipt-print-root tr,
+  #receipt-print-root div {
+    break-inside: avoid;
+  }
+
+  html, body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+  }
+}

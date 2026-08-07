@@ -15,8 +15,17 @@
     background: white;
     /* Receipts are usually white */
     color: black;
-    width: 380px;
-    /* Thermal printer width approx */
+    /*
+     * Exactly the printable width, not an approximation of it.
+     *
+     * This is load-bearing, not cosmetic: printReceipt() measures the rendered
+     * receipt to size the page. If the preview laid out at a different width or
+     * font size than the paper, that measurement would be of the wrong thing —
+     * which it was, and it left ~7cm of blank roll on every receipt. Screen and
+     * print now share one layout, so the measurement is the truth and the
+     * preview is a faithful picture of the paper.
+     */
+    width: 80mm;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
@@ -25,10 +34,14 @@
 }
 
 .receiptContainer {
-    padding: 1.5rem;
+    /* ~3mm of the roll is unprintable on either side */
+    padding: 2mm 3mm;
     overflow-y: auto;
     font-family: 'Courier New', Courier, monospace;
-    font-size: 0.9rem;
+    /* px, not rem: this must not move with a user's root font size, or the
+       measured height stops matching the printed height. */
+    font-size: 11px;
+    line-height: 1.35;
 }
 
 .header {
@@ -65,10 +78,18 @@
 .meta {
     display: flex;
     justify-content: space-between;
+    gap: 0.5rem;
     margin-bottom: 1rem;
-    font-size: 0.8rem;
+    /* 10px, not 0.8rem: at 12.8px the date and the user together overrun 74mm
+       of printable width and "PM" wraps onto its own line. */
+    font-size: 10px;
     border-bottom: 1px dashed black;
     padding-bottom: 0.5rem;
+}
+
+/* A timestamp broken across two lines is worse than a slightly smaller one */
+.meta span {
+    white-space: nowrap;
 }
 
 .items table {
@@ -132,6 +153,10 @@
     height: 100px;
     margin: 0 auto 0.5rem;
     border: 1px solid black;
+    /* Centres the inline SVG that replaced the remote image */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .qrSection p {
@@ -175,4 +200,46 @@
 .printBtn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+/*
+ * ===== Print overrides =====
+ *
+ * globals.css handles isolating and sizing the receipt; these undo the on-screen
+ * modal chrome that would otherwise follow it onto the paper. The two halves are
+ * split because these classes are module-hashed and only reachable from here.
+ */
+@media print {
+    /* The dark scrim and centring are screen-only concerns */
+    .overlay {
+        position: static;
+        background: none;
+        display: block;
+        z-index: auto;
+    }
+
+    /* 380px and a 90vh cap are what clip a long receipt — both have to go */
+    .modal {
+        width: auto;
+        max-height: none;
+        border-radius: 0;
+        overflow: visible;
+        display: block;
+        background: #fff;
+    }
+
+    .receiptContainer {
+        /* Only the scroll container changes for paper — padding and type stay
+           exactly as previewed so the measured height is the printed height. */
+        overflow: visible;
+    }
+
+    /* Back / Print buttons must never reach the paper */
+    .actions {
+        display: none;
+    }
+
+    /* Drop the QR's on-screen border; the code itself prints fine without it */
+    .qrCode {
+        border: none;
+    }
 }
