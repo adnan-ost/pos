@@ -25,12 +25,42 @@ prints as one continuous strip with no page break and no metre of blank roll.
 idiom you'll find in most blog posts — does **not** work. Chrome treats mixing a
 length with `auto` as invalid, drops the rule, and silently prints US Letter.)
 
-## 2. The shortcut
+## 2. Prime the profile — do this before the shortcut
+
+**This step is what most silent-printing setups get wrong.**
+
+Kiosk printing has no print preview, so it cannot ask you anything. It reuses the
+print settings **already saved in that Chrome profile**. A brand-new
+`--user-data-dir` has none, so Chrome falls back to defaults — which include
+**headers and footers** (the URL and date printed on your receipt) and default
+margins. Those also add height, which can push a receipt onto an extra page and
+give you an extra cut.
+
+So teach the profile once, with the preview still available:
+
+1. Launch Chrome with the profile but **without** `--kiosk-printing`:
+
+   ```
+   "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="C:\pos-profile" https://flamespos.vercel.app/pos
+   ```
+
+2. Sign in, open any order in **Orders** and press the 🖨 button to get a receipt.
+3. In the print dialog set, in this order:
+   - **Destination** — the thermal printer
+   - **Margins** — None
+   - **Scale** — Default (or 100%, never "Fit to page")
+   - **Options** — untick **Headers and footers**
+4. Press **Print**. That's what saves the settings into the profile.
+5. Close Chrome completely.
+
+Now the kiosk shortcut will print silently using exactly those settings.
+
+## 3. The shortcut
 
 Create a desktop shortcut with this as the target:
 
 ```
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing --user-data-dir="C:\pos-profile" --app=https://flamespos.vercel.app/pos
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk --kiosk-printing --user-data-dir="C:\pos-profile" --app=https://flamespos.vercel.app/pos
 ```
 
 What each part is for:
@@ -38,19 +68,21 @@ What each part is for:
 | Flag | Why |
 |---|---|
 | `--kiosk-printing` | Prints straight to the default printer, no preview, no dialog |
+| `--kiosk` | Reported to be needed alongside it on some Chrome builds for the silent print to take. Harmless if it wasn't |
 | `--user-data-dir="C:\pos-profile"` | **Forces a separate Chrome process.** This is what makes the flag take effect at all — see below |
 | `--app=<url>` | Chromeless window — no address bar or tabs for staff to wander out of |
 
-Add `--start-fullscreen` if you want it edge to edge. Use `--kiosk` for true
-locked-down kiosk mode, but note that also removes the window controls, so have
-a way back out (Alt+F4) before you set it on a machine you're not sitting at.
+`--kiosk` removes the window controls, so know your way back out before setting
+this on a machine you aren't sitting at: **Alt+F4** closes it. Drop `--kiosk` if
+you'd rather keep a normal window while you're still setting things up — silent
+printing does not depend on it in most builds.
 
-## 3. Start it with Windows
+## 4. Start it with Windows
 
 Press `Win+R`, run `shell:startup`, and drop a copy of the shortcut in the folder
 that opens. The till then comes up ready after a power cut.
 
-## 4. Confirm it before a service
+## 5. Confirm it before a service
 
 1. Launch the shortcut. Sign in.
 2. Ring up **one item** and take payment.
@@ -111,12 +143,24 @@ A flag inside the quotes becomes part of the path and Windows ignores it.
 The kiosk window is the only one that prints silently. A normal Chrome window
 pointed at the same URL will always show the dialog — that's expected.
 
-## "The receipt got cut in half"
+## "One bill came out with several cuts"
 
-The app measures each receipt and asks for a page exactly that tall, but **the
-printer driver has the final say**. If the driver's paper is a fixed length
-(often 80 × 297mm, sometimes shorter), anything longer is split across pages —
-which is what a receipt torn off after the payment QR looks like.
+Each cut is a **page boundary**. Three cuts means Chrome split the receipt into
+three pages and the printer cut at the end of each. Two things cause that, and
+both are in the driver rather than the app:
+
+**The cut mode.** Most thermal drivers offer a choice like *Cut per page* vs
+*Cut at end of document / end of job*. On *per page* you get one cut per page, so
+a receipt that paginates gets chopped into pieces. Set it to **end of
+document/job** so there is exactly one cut per receipt no matter how it paginated.
+
+**The page length.** The app asks for a page exactly as tall as the receipt, but
+that is only a request — the driver's paper size decides. A fixed 80 × 297mm page
+splits anything longer.
+
+Also check step 2 above: if **Headers and footers** is still on, Chrome is adding
+a URL and date line plus margins to every page, which makes pagination more likely
+in the first place.
 
 Fix it in the driver, not the app:
 

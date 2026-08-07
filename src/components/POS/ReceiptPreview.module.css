@@ -62,7 +62,7 @@
        than the 74mm printable area (which is why it looked left-aligned) */
     display: block;
     margin: 0 auto 2mm;
-    height: 42px;
+    height: 58px;
     max-width: 100%;
 
     /*
@@ -74,9 +74,16 @@
 }
 
 .header p {
-    /* px like everything else here: 0.8rem resolves against the root to 12.8px,
-       which is wider than the base and nearly overruns the NTN line. */
-    font-size: 11px;
+    /*
+     * px like everything else here: 0.8rem resolves against the root to 12.8px,
+     * which nearly overruns the NTN line.
+     *
+     * Weight 600 to match the item rows. At regular weight this whole band —
+     * merchant name, NTN/STRN, invoice box, date — printed noticeably greyer
+     * than the items below it.
+     */
+    font-size: 12px;
+    font-weight: 600;
     margin-bottom: 0.5mm;
 }
 
@@ -86,9 +93,10 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    font-weight: bold;
+    font-size: 12px;
+    font-weight: 700;
     border: 1px dashed black;
-    padding: 0.25rem;
+    padding: 1mm;
 }
 
 .fbrLogo {
@@ -103,11 +111,12 @@
     justify-content: space-between;
     gap: 0.5rem;
     margin-bottom: 1rem;
-    /* 10px, not 0.8rem: at 12.8px the date and the user together overrun 74mm
+    /* 11px, not 0.8rem: at 12.8px the date and the user together overrun 74mm
        of printable width and "PM" wraps onto its own line. */
-    font-size: 10px;
+    font-size: 11px;
+    font-weight: 600;
     border-bottom: 1px dashed black;
-    padding-bottom: 0.5rem;
+    padding-bottom: 1.5mm;
 }
 
 /* A timestamp broken across two lines is worse than a slightly smaller one */
@@ -123,7 +132,9 @@
 .items th {
     text-align: left;
     border-bottom: 1px solid black;
-    padding-bottom: 0.25rem;
+    padding-bottom: 1mm;
+    /* The column header was the last thing in the grey band */
+    font-size: 12px;
     font-weight: 700;
 }
 
@@ -147,6 +158,9 @@
     display: flex;
     justify-content: space-between;
     margin-bottom: 0.25rem;
+    /* Sub Total, Discount and the tax line are money and get read as carefully
+       as the total; at the base weight they printed grey like the header band did */
+    font-weight: 600;
 }
 
 .grandTotal {
@@ -158,10 +172,15 @@
 }
 
 .qrSection {
-    /* Was 1.5rem top plus a padded, bordered wrapper; that combination is what
-       pushed a 12-line receipt past the printer's page and split it. */
-    margin-top: 3mm;
+    /* Enough air to read as its own block, without the padded bordered wrapper
+       this replaced (which cost ~15mm and earned nothing on paper). */
+    margin-top: 5mm;
     text-align: center;
+}
+
+/* The two codes are separate things and were running together */
+.qrSection + .qrSection {
+    margin-top: 7mm;
 }
 
 /*
@@ -176,12 +195,14 @@
 
 .qrCaption {
     font-weight: 700;
-    margin-top: 1mm;
+    /* Clear of the code itself, so the caption doesn't crowd the quiet zone */
+    margin-top: 2.5mm;
 }
 
 .qrSection p {
-    font-size: 10px;
-    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    margin: 0 0 0.5mm;
 }
 
 .footer {
