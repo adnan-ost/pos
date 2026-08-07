@@ -19,8 +19,12 @@ choose one, so:
 3. In the printer's own properties, set the paper/roll to **80mm**. The driver
    has the final say on the physical roll and on any scaling.
 
-The app measures each receipt and asks for a page exactly that tall, so a receipt
-prints as one continuous strip with no page break and no metre of blank roll.
+The app measures each receipt and asks for a page exactly that tall, so it should
+print as one continuous strip with no page break and no blank roll at the end.
+But that is only a **request**: Chrome can only use a paper size the driver
+actually offers, and the driver decides where a page ends. If a bill comes out in
+pieces, that is the mismatch — see the cut section below.
+
 (Worth knowing if you ever touch the print CSS: `@page { size: 80mm auto }` — the
 idiom you'll find in most blog posts — does **not** work. Chrome treats mixing a
 length with `auto` as invalid, drops the rule, and silently prints US Letter.)
@@ -145,35 +149,67 @@ pointed at the same URL will always show the dialog — that's expected.
 
 ## "One bill came out with several cuts"
 
-Each cut is a **page boundary**. Three cuts means Chrome split the receipt into
-three pages and the printer cut at the end of each. Two things cause that, and
-both are in the driver rather than the app:
+The cut must happen once, after the whole receipt has printed. Several cuts means
+the receipt was split into several **pages**, and the printer cut at the end of
+each one.
 
-**The cut mode.** Most thermal drivers offer a choice like *Cut per page* vs
-*Cut at end of document / end of job*. On *per page* you get one cut per page, so
-a receipt that paginates gets chopped into pieces. Set it to **end of
-document/job** so there is exactly one cut per receipt no matter how it paginated.
+### First, find out which of the two causes it is
 
-**The page length.** The app asks for a page exactly as tall as the receipt, but
-that is only a request — the driver's paper size decides. A fixed 80 × 297mm page
-splits anything longer.
+Don't guess — this test tells you in thirty seconds. In the primed Chrome profile,
+open a long order from **Orders**, press 🖨, and in the print dialog change
+**Destination** to **Save as PDF**. Save it and open the file.
 
-Also check step 2 above: if **Headers and footers** is still on, Chrome is adding
-a URL and date line plus margins to every page, which makes pagination more likely
-in the first place.
+| What the PDF shows | What's wrong | Fix |
+|---|---|---|
+| **Several pages** | Chrome is paginating — the paper size is too short | Paper length, below |
+| **One page**, but paper still came out in pieces | Chrome sent one page; the printer is cutting mid-job | Cut mode, below |
 
-Fix it in the driver, not the app:
+Everything the app controls has already happened by this point, so one of these
+two is always the answer.
 
-1. Control Panel → Devices and Printers → right-click the printer → **Printing
-   preferences**.
-2. Set the paper size to the roll or a **continuous / receipt** option if the
-   driver offers one. If it only offers fixed sizes, create a custom size 80mm
-   wide and as long as it allows (e.g. 80 × 1000mm).
-3. Set scaling to **100% / Actual size**. Any "fit to page" setting will shrink
-   the text and can also force a break.
+### Cut mode
 
-Then reprint a long order from the Orders screen (🖨 on the row) to check,
-rather than ringing up another sale.
+Most thermal drivers have a setting named something like *Cut Method*, *Paper
+Cut* or *Auto Cut*, with options along the lines of:
+
+- **Cut per page** — one cut at every page break. This is what chops a bill up.
+- **Cut at end of document / end of job** — one cut per receipt. **Use this.**
+- **None** — never cuts; tear it off by hand.
+
+Control Panel → Devices and Printers → right-click the printer → **Printing
+preferences**, then look under a tab like *Document Settings*, *Paper* or
+*Advanced*. The exact wording varies by brand (XPrinter, Epson TM, Black Copper,
+Rongta all name it differently).
+
+### Paper length
+
+The app asks for a page exactly as tall as the receipt, but that is only a
+request — Chrome can only use a paper size the driver actually offers, and the
+driver's default is often small. If none is long enough, make one:
+
+1. Control Panel → **Devices and Printers**
+2. Click any printer once, then **Print server properties** on the toolbar
+3. **Forms** tab → tick **Create a new form**
+4. Name it `Receipt 80x1000`, set **Width 8.00cm**, **Height 100.00cm**, margins 0
+5. **Save Form**
+6. Back in the printer's **Printing preferences**, choose `Receipt 80x1000` as the
+   paper size
+
+A page far longer than any receipt cannot paginate, so there is nothing to cut in
+the middle of. A thermal printer only feeds what it prints, so the extra page
+length costs no paper.
+
+### While you're in there
+
+Two settings make pagination more likely and are worth ruling out at the same time:
+
+- **Scaling** must be **100% / Actual size**. "Fit to page" shrinks the text and
+  can force a break.
+- **Headers and footers** must be off (step 2 above). Chrome otherwise adds a URL
+  and date line plus margins to every page, which is extra height on every receipt.
+
+Test with a reprint from the Orders screen (🖨 on the row) rather than ringing up
+another sale — same print path, no extra order in the books.
 
 ## Turning it off
 
