@@ -2,39 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Pure black theme. The greys are neutral rather than the slate-blue they were:
+ * against #000 any blue cast in a card or border reads as a colour wash rather
+ * than as dark.
+ *
+ * Cards sit at #0d0d0d, not #000 — a card the same colour as the page behind it
+ * has no edge, and the whole layout depends on that separation.
+ */
 :root {
   /* Primary Brand Colors - Flames by the Indus */
   --primary: #F26513;
-  /* Brand Orange */
   --primary-hover: #D95511;
-  /* Darker Orange */
   --primary-foreground: #ffffff;
 
   /* Secondary / Accent */
   --accent: #f59e0b;
-  /* Amber 500 - for warnings/attention */
   --accent-foreground: #ffffff;
 
-  /* Backgrounds - Dark Theme by Default for Premium Feel */
-  --background: #0f172a;
-  /* Slate 900 */
-  --card: #1e293b;
-  /* Slate 800 */
-  --card-foreground: #f8fafc;
-  /* Slate 50 */
+  /*
+   * Backgrounds. Pure black page, with everything above it drawn from the
+   * warm near-blacks the public menu site uses (#0a0908, #11100f) rather than
+   * neutral grey — a cool grey card on a warm-branded black reads as blue.
+   *
+   * Cards are lifted off the page rather than sharing its colour: a card the
+   * same black as the background has no edge, and the layout leans on that.
+   */
+  --background: #000000;
+  --card: #0d0b0a;
+  --card-elevated: #15120f;
+  --card-foreground: #fffdf9;
 
-  /* Text */
-  --foreground: #f1f5f9;
-  /* Slate 100 */
-  --muted: #64748b;
-  /* Slate 500 */
-  --muted-foreground: #94a3b8;
-  /* Slate 400 */
+  /* Text — the site's cream, not white, so long lists read softer on black */
+  --foreground: #f8f4ee;
+  /* #756d65 is the site's muted, but that reads 3.86:1 on a near-black card —
+     under AA for body text, and this is the colour on every secondary label.
+     Lifted until it clears 4.5:1 while staying the same warm hue. */
+  --muted: #8a8179;
+  --muted-foreground: #a39a92;
 
   /* Borders */
-  --border: #334155;
-  /* Slate 700 */
-  --input: #334155;
+  /* Borders carry the layout on a black theme, where there's no shadow to read
+     against. #201c19 was 1.16:1 on a card — effectively invisible. */
+  --border: #332c27;
+  --input: #332c27;
 
   /* Status */
   --destructive: #ef4444;

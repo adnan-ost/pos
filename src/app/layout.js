@@ -24,7 +24,7 @@ export const metadata = {
 
 // Matches the app background so an installed till has no light flash on launch
 export const viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#000000",
 };
 
 export default async function RootLayout({ children }) {

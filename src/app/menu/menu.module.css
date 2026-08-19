@@ -244,7 +244,7 @@
     padding: 16px;
     overflow: hidden;
     position: relative;
-    background: #1a1a2e;
+    background: var(--card-elevated);
 }
 
 .imageContainer img {
