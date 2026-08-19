@@ -141,9 +141,61 @@ async function replace() {
     console.log(`inserted ${inserted.length} items`);
 }
 
+/*
+ * Uploads any image the bucket doesn't already have, then points each item's
+ * `image` column at it.
+ *
+ * Separate from `replace` because it touches nothing else: replace deletes and
+ * re-inserts every row, which is the wrong tool for adding a few photographs to
+ * a menu that is already live and being sold from.
+ */
+async function syncImages() {
+    const cats = await rest('categories?select=id,name');
+    const catId = Object.fromEntries(cats.map(c => [c.name, c.id]));
+
+    let uploaded = 0, skipped = 0, linked = 0;
+    for (const item of SEED.items.filter(i => i.image_file)) {
+        const path = objectPath(item);
+        const url = publicUrl(path);
+
+        // Public HEAD is cheaper than re-sending a 200KB body for the ~114
+        // photographs that are already up there.
+        const head = await fetch(url, { method: 'HEAD' });
+        if (head.ok) {
+            skipped++;
+        } else {
+            const body = readFileSync(join(IMG_ROOT, item.image_file));
+            const r = await fetch(`${URL_}/storage/v1/object/${BUCKET}/${path}`, {
+                method: 'POST',
+                headers: {
+                    apikey: ANON, Authorization: `Bearer ${token}`,
+                    'Content-Type': 'image/webp', 'x-upsert': 'true',
+                    'cache-control': '31536000',
+                },
+                body,
+            });
+            if (!r.ok) throw new Error(`upload ${path}: ${r.status} ${(await r.text()).slice(0, 160)}`);
+            uploaded++;
+            console.log(`   uploaded ${item.name}`);
+        }
+
+        // Matched on name *and* category: Channay exists in two categories with a
+        // different photograph in each, so name alone would give them both the same.
+        const q = `menu_items?name=eq.${encodeURIComponent(item.name)}&category_id=eq.${catId[item.category]}`;
+        const rows = await rest(q, {
+            method: 'PATCH',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify({ image: url }),
+        });
+        linked += rows.length;
+    }
+    console.log(`uploaded ${uploaded}, already present ${skipped}, items linked ${linked}`);
+}
+
 const cmd = process.argv[2];
 await signIn();
 if (cmd === 'backup') await backup();
 else if (cmd === 'upload') await upload();
 else if (cmd === 'replace') await replace();
-else { console.error('usage: apply_menu.mjs backup|upload|replace'); process.exit(1); }
+else if (cmd === 'sync-images') await syncImages();
+else { console.error('usage: apply_menu.mjs backup|upload|replace|sync-images'); process.exit(1); }

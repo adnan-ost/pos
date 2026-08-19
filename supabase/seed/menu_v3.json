@@ -1179,7 +1179,7 @@
    "description": "chilled, sweet & strong",
    "price": 250,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/04_Cold_by_the_River_Summer/01_Iced_Karak.webp"
   },
   {
    "name": "Doodh Soda",
@@ -1187,7 +1187,7 @@
    "description": "milk, soda & a hint of cardamom",
    "price": 200,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/04_Cold_by_the_River_Summer/02_Doodh_Soda.webp"
   },
   {
    "name": "Gulab Jamun",
@@ -1195,7 +1195,7 @@
    "description": "warm, syrup-soaked",
    "price": 250,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/01_Gulab_Jamun.webp"
   },
   {
    "name": "Ras Malai",
@@ -1203,7 +1203,7 @@
    "description": "saffron cream",
    "price": 350,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/02_Ras_Malai.webp"
   },
   {
    "name": "Kheer",
@@ -1211,7 +1211,7 @@
    "description": "rice pudding",
    "price": 250,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/03_Kheer.webp"
   },
   {
    "name": "Gajar ka Halwa",
@@ -1219,7 +1219,7 @@
    "description": "carrot, ghee & nuts (seasonal)",
    "price": 300,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/04_Gajar_ka_Halwa.webp"
   },
   {
    "name": "Shahi Tukda",
@@ -1227,7 +1227,7 @@
    "description": "royal bread pudding",
    "price": 280,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/05_Shahi_Tukda.webp"
   },
   {
    "name": "Zarda",
@@ -1235,7 +1235,7 @@
    "description": "sweet saffron rice",
    "price": 250,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/06_Zarda.webp"
   },
   {
    "name": "Jalebi",
@@ -1243,7 +1243,7 @@
    "description": "crisp & syrupy",
    "price": 200,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/07_Jalebi.webp"
   },
   {
    "name": "Kulfi",
@@ -1251,7 +1251,7 @@
    "description": "traditional frozen milk",
    "price": 250,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/08_Kulfi.webp"
   },
   {
    "name": "Falooda",
@@ -1259,7 +1259,7 @@
    "description": "rose, vermicelli & ice cream",
    "price": 350,
    "variants": [],
-   "image_file": null
+   "image_file": "03_The_Chai_Khana/05_Mithai_Sweet_Endings/09_Falooda.webp"
   }
  ]
 }
