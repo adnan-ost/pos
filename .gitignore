@@ -46,3 +46,11 @@ next-env.d.ts
 # app actually serves. supabase/seed/menu_v3.json records which file became which
 # item, so the mapping survives even without the folder.
 /Digital_Menu_Item_Images (webp 800)/
+
+# Local preview of the menu photography review (half a MB of inlined images)
+menu-photo-review.html
+
+# Review batch of regenerated menu photos (not yet approved)
+menu-images-v2/
+menu-photo-review-2.html
+menu-photo-review-final.html
