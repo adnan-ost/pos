@@ -230,7 +230,13 @@
 }
 
 .imageContainer {
-    height: 160px;
+    /*
+     * Square, because every menu photograph is 800x800. A fixed height in a
+     * wider card meant `cover` trimmed roughly a quarter off each dish; matching
+     * the container to the source aspect means nothing is cropped and there are
+     * no letterbox bars either.
+     */
+    aspect-ratio: 1 / 1;
     width: 100%;
     overflow: hidden;
     position: relative;
@@ -240,12 +246,17 @@
 .imageContainer img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    /* contain, not cover: cover crops anything that isn't square, and the point
+       is that the whole dish is visible. Identical to cover for the 800x800
+       photographs, and a safety net for any other shape uploaded later. */
+    object-fit: contain;
     transition: transform 0.4s ease;
 }
 
 .menuItem:hover .imageContainer img {
-    transform: scale(1.05);
+    /* No zoom: scaling inside an overflow-hidden box crops the edges,
+       which is exactly what this change was undoing. */
+    transform: none;
 }
 
 .noImage {
