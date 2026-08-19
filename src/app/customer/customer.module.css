@@ -34,7 +34,7 @@
 
 /* Header */
 .header {
-    background: rgba(15, 23, 42, 0.95);
+    background: rgba(13, 11, 10, 0.92);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
     position: sticky;
@@ -105,7 +105,7 @@
 
 /* Categories */
 .categoriesWrapper {
-    background: rgba(30, 41, 59, 0.5);
+    background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
     position: sticky;
@@ -257,6 +257,15 @@
     gap: 0.75rem;
 }
 
+.itemText {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    /* Lets the text column shrink inside a flex row instead of forcing the
+       card wider than its track */
+    min-width: 0;
+}
+
 .itemHeader {
     display: flex;
     justify-content: space-between;
@@ -321,7 +330,7 @@
 .variant {
     font-size: 0.75rem;
     color: var(--muted-foreground);
-    background: var(--background);
+    background: var(--card-elevated);
     padding: 0.3rem 0.6rem;
     border-radius: 4px;
 }
@@ -351,7 +360,7 @@
 
 /* Footer */
 .footer {
-    background: rgba(15, 23, 42, 0.95);
+    background: rgba(13, 11, 10, 0.92);
     border-top: 1px solid var(--border);
     text-align: center;
     padding: 2rem;
@@ -421,4 +430,184 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.02em;
+}
+
+/* ===== View toggle (grid / list) ===== */
+
+.toolbar {
+    /* mainContent already supplies the 1400px cap and the page gutter */
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.resultCount {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.viewToggle {
+    display: inline-flex;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    padding: 0.25rem;
+    gap: 0.25rem;
+}
+
+.viewButton {
+    background: transparent;
+    border: none;
+    color: var(--muted-foreground);
+    /* Padded to a 40px target: this page is read on phones at the table */
+    padding: 0.5rem 0.9rem;
+    border-radius: 50px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: inherit;
+    transition: background 0.2s, color 0.2s;
+}
+
+.viewButton:hover {
+    color: var(--foreground);
+}
+
+.viewButton.viewActive {
+    background: var(--primary);
+    color: #fff;
+}
+
+.viewLabel {
+    /* The icons alone are ambiguous at a glance; the words disappear on phones
+       where the toggle competes with the search field for width. */
+    display: none;
+}
+
+@media (min-width: 640px) {
+    .viewLabel {
+        display: inline;
+    }
+}
+
+/* ===== List view =====
+ *
+ * A modifier on the same container as the grid, so a card keeps its markup and
+ * only its layout changes. Rows put the photo, name and price on one line —
+ * quicker to scan a long menu, and it fits far more dishes on a phone screen.
+ */
+.menuList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.menuList .menuItem {
+    flex-direction: row;
+    align-items: stretch;
+    border-radius: 14px;
+}
+
+.menuList .menuItem:hover {
+    /* No lift in list view: a row rising out of a stack shifts its neighbours
+       in the eye and makes a long list feel unsteady. */
+    transform: none;
+    box-shadow: none;
+    border-color: var(--primary);
+}
+
+.menuList .imageContainer {
+    width: 108px;
+    flex-shrink: 0;
+    padding: 10px;
+}
+
+.menuList .categoryBadge {
+    /* The row already sits under its category heading in context, and the badge
+       covers most of a thumbnail this size. */
+    display: none;
+}
+
+.menuList .soldOutTag {
+    top: 0.35rem;
+    left: 0.35rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.6rem;
+}
+
+.menuList .itemContent {
+    /* The row's whole point: name on the left, price on the right, the way a
+       printed menu sets it. Stacked text in a 1300px-wide row leaves most of
+       the line empty and the eye with no column to follow down to the price. */
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1.1rem;
+    gap: 1.5rem;
+    min-width: 0;
+}
+
+.menuList .itemText {
+    flex: 1;
+    gap: 0.2rem;
+}
+
+.menuList .menuItem h3 {
+    font-size: 1rem;
+}
+
+.menuList .itemDesc {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+}
+
+.menuList .itemFooter {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.menuList .priceSection {
+    align-items: flex-end;
+    gap: 0.35rem;
+}
+
+.menuList .variants {
+    justify-content: flex-end;
+}
+
+.menuList .price {
+    font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+    .menuList .imageContainer {
+        width: 88px;
+        padding: 8px;
+    }
+
+    .menuList .itemContent {
+        /* Back to stacked below 768px: there isn't room for a description and
+           a price on one line, and the description would clamp to nothing. */
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 0.35rem;
+        padding: 0.75rem 0.85rem;
+    }
+
+    .menuList .itemFooter {
+        text-align: left;
+    }
+
+    .menuList .priceSection {
+        align-items: flex-start;
+    }
 }

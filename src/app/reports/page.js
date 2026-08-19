@@ -304,12 +304,12 @@ export default function ReportsPage() {
                     <h3 className="text-lg font-semibold text-white mb-6">Busiest hours</h3>
                     <ResponsiveContainer width="100%" height={220}>
                         <BarChart data={stats.hourly}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-                            <XAxis dataKey="label" stroke="#6b7280" fontSize={11} tickLine={false} />
-                            <YAxis stroke="#6b7280" fontSize={11} tickLine={false} axisLine={false} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#332c27" vertical={false} />
+                            <XAxis dataKey="label" stroke="#a39a92" fontSize={11} tickLine={false} />
+                            <YAxis stroke="#a39a92" fontSize={11} tickLine={false} axisLine={false} />
                             <Tooltip
-                                contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8 }}
-                                labelStyle={{ color: '#f3f4f6' }}
+                                contentStyle={{ background: '#15120f', border: '1px solid #332c27', borderRadius: 8 }}
+                                labelStyle={{ color: '#f8f4ee' }}
                                 formatter={(value, name) => name === 'revenue'
                                     ? [`Rs. ${Math.round(value).toLocaleString()}`, 'Sales']
                                     : [value, 'Orders']}
@@ -330,14 +330,14 @@ export default function ReportsPage() {
                         {stats.chartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={stats.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
-                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#332c27" />
+                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#a39a92', fontSize: 12 }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a39a92', fontSize: 12 }} />
                                     <Tooltip
-                                        cursor={{ fill: '#1F2937' }}
-                                        contentStyle={{ backgroundColor: '#1F2937', borderRadius: '8px', border: '1px solid #374151', color: '#F3F4F6' }}
-                                        itemStyle={{ color: '#F3F4F6' }}
-                                        labelStyle={{ color: '#9CA3AF' }}
+                                        cursor={{ fill: '#332c27' }}
+                                        contentStyle={{ backgroundColor: '#15120f', borderRadius: '8px', border: '1px solid #332c27', color: '#f8f4ee' }}
+                                        itemStyle={{ color: '#f8f4ee' }}
+                                        labelStyle={{ color: '#a39a92' }}
                                     />
                                     <Bar dataKey="sales" fill="#F26513" radius={[4, 4, 0, 0]} barSize={40} />
                                 </BarChart>

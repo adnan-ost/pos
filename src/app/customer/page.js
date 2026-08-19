@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import styles from './customer.module.css';
 import { getFullMenuData } from '@/lib/supabaseDb';
-import { Soup, Flame, Utensils, Cookie, GlassWater, Plus, Search } from 'lucide-react';
+import { Soup, Flame, Utensils, Cookie, GlassWater, Plus, Search, LayoutGrid, List } from 'lucide-react';
 import Image from 'next/image';
 
 // Icon mapping for categories
@@ -19,11 +19,21 @@ const CategoryIcon = ({ name, size = 18 }) => {
     return <Icon size={size} />;
 };
 
+const VIEW_STORAGE_KEY = 'flames.customerMenuView';
+
 export default function CustomerMenuPage() {
     const [menuData, setMenuData] = useState({ categories: [], items: [], modifiers: {} });
     const [activeCategory, setActiveCategory] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    /*
+     * Starts on 'grid' rather than reading localStorage during render: this page
+     * is server-rendered, and a value only the browser has would make the first
+     * client render disagree with the server's. The stored choice is applied in
+     * the effect below, which runs well before the menu data resolves — so the
+     * cards are only ever painted once, in the right layout.
+     */
+    const [view, setView] = useState('grid');
 
     // Load menu data
     useEffect(() => {
@@ -39,6 +49,25 @@ export default function CustomerMenuPage() {
         };
         loadData();
     }, []);
+
+    // Restore the last-used layout
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(VIEW_STORAGE_KEY);
+            if (saved === 'grid' || saved === 'list') setView(saved);
+        } catch {
+            // Private browsing or a blocked store — the default is fine
+        }
+    }, []);
+
+    const chooseView = (next) => {
+        setView(next);
+        try {
+            localStorage.setItem(VIEW_STORAGE_KEY, next);
+        } catch {
+            // Not worth surfacing: the layout still changes, it just won't persist
+        }
+    };
 
     // Filter items by category and search
     const filteredItems = useMemo(() => {
@@ -126,6 +155,41 @@ export default function CustomerMenuPage() {
 
             {/* Menu Content */}
             <main className={styles.mainContent}>
+                {filteredItems.length > 0 && (
+                    <div className={styles.toolbar}>
+                        <span className={styles.resultCount}>
+                            {filteredItems.length} {filteredItems.length === 1 ? 'dish' : 'dishes'}
+                        </span>
+                        {/* aria-label on each button because the word beside the icon
+                            is hidden below 640px — without it the control reaches a
+                            screen reader unnamed on exactly the devices most guests use */}
+                        <div className={styles.viewToggle} role="group" aria-label="Menu layout">
+                            <button
+                                type="button"
+                                className={`${styles.viewButton} ${view === 'grid' ? styles.viewActive : ''}`}
+                                onClick={() => chooseView('grid')}
+                                aria-pressed={view === 'grid'}
+                                aria-label="Grid view"
+                                title="Grid view"
+                            >
+                                <LayoutGrid size={16} />
+                                <span className={styles.viewLabel}>Grid</span>
+                            </button>
+                            <button
+                                type="button"
+                                className={`${styles.viewButton} ${view === 'list' ? styles.viewActive : ''}`}
+                                onClick={() => chooseView('list')}
+                                aria-pressed={view === 'list'}
+                                aria-label="List view"
+                                title="List view"
+                            >
+                                <List size={16} />
+                                <span className={styles.viewLabel}>List</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {filteredItems.length === 0 ? (
                     <div className={styles.emptyState}>
                         <Utensils size={64} />
@@ -133,7 +197,7 @@ export default function CustomerMenuPage() {
                         <p>Try a different search term or category</p>
                     </div>
                 ) : (
-                    <div className={styles.menuGrid}>
+                    <div className={view === 'list' ? styles.menuList : styles.menuGrid}>
                         {filteredItems.map(item => (
                             <article
                                 key={item.id}
@@ -148,7 +212,7 @@ export default function CustomerMenuPage() {
                                         </div>
                                     )}
                                     <span className={styles.categoryBadge}>
-                                        {getCategoryName(item.categoryId)}
+                                        {getCategoryName(item.category_id)}
                                     </span>
                                     {/* Told outright rather than removed from the menu: a guest
                                         who asks for it should hear it before ordering, and a
@@ -158,15 +222,20 @@ export default function CustomerMenuPage() {
                                     )}
                                 </div>
                                 <div className={styles.itemContent}>
-                                    <div className={styles.itemHeader}>
-                                        <h3>{item.name}</h3>
-                                        {item.unit && (
-                                            <span className={styles.unitBadge}>{item.unit}</span>
+                                    {/* Name and description travel together so the list
+                                        layout can set them beside the price rather than
+                                        above it, without either one wrapping oddly. */}
+                                    <div className={styles.itemText}>
+                                        <div className={styles.itemHeader}>
+                                            <h3>{item.name}</h3>
+                                            {item.unit && (
+                                                <span className={styles.unitBadge}>{item.unit}</span>
+                                            )}
+                                        </div>
+                                        {item.description && (
+                                            <p className={styles.itemDesc}>{item.description}</p>
                                         )}
                                     </div>
-                                    {item.description && (
-                                        <p className={styles.itemDesc}>{item.description}</p>
-                                    )}
                                     <div className={styles.itemFooter}>
                                         <div className={styles.priceSection}>
                                             <span className={styles.price}>
