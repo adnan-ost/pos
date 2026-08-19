@@ -198,6 +198,10 @@
      */
     aspect-ratio: 1 / 1;
     width: 100%;
+    /* Inset so the card's own background frames the photo instead of the image
+       running edge to edge. box-sizing is border-box globally, so this eats into
+       the square rather than growing it. */
+    padding: 18px;
     overflow: hidden;
     position: relative;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -210,6 +214,8 @@
        is that the whole dish is visible. Identical to cover for the 800x800
        photographs, and a safety net for any other shape uploaded later. */
     object-fit: contain;
+    /* Softened corners so the inset reads as deliberate framing */
+    border-radius: 10px;
     transition: transform 0.5s ease;
 }
 
