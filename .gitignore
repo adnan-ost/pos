@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Source photography for the menu (~21MB of webp).
+# Not tracked: the originals are the designer's, and every one of them is already
+# uploaded to the Supabase `menu-images` bucket under menu-v3/, which is what the
+# app actually serves. supabase/seed/menu_v3.json records which file became which
+# item, so the mapping survives even without the folder.
+/Digital_Menu_Item_Images (webp 800)/

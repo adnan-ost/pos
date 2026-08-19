@@ -669,7 +669,16 @@ export default function POSPage() {
                                 aria-disabled={soldOut}
                             >
                                 <div className={styles.imageContainer}>
-                                    {item.image && <img src={item.image} alt={item.name} />}
+                                    {item.image && (
+                                        <img
+                                            src={item.image}
+                                            alt={item.name}
+                                            /* 114 photos at ~190KB each is 21MB if they all load
+                                               at once; lazy fetches only what is on screen */
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                    )}
                                     {soldOut && <span className={styles.soldOutTag}>Sold out</span>}
                                 </div>
                                 <div className={styles.itemContent}>
@@ -680,7 +689,7 @@ export default function POSPage() {
 
                                     <p className={styles.itemDesc}>{item.description}</p>
 
-                                    {item.variants && <span className={styles.badge}>Variants</span>}
+                                    {item.variants?.length > 0 && <span className={styles.badge}>Variants</span>}
                                 </div>
                                 {!soldOut && <button className={styles.addBtn}><Plus size={16} /></button>}
                             </div>

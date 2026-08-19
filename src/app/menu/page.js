@@ -285,7 +285,7 @@ export default function MenuManagementPage() {
                             >
                                 <div className={styles.imageContainer}>
                                     {item.image ? (
-                                        <img src={item.image} alt={item.name} />
+                                        <img src={item.image} alt={item.name} loading="lazy" decoding="async" />
                                     ) : (
                                         <div className={styles.noImage}>
                                             <Utensils size={32} />
