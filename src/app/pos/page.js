@@ -489,6 +489,16 @@ export default function POSPage() {
         setTableNumber('');
         setWaiterId('');
         setOrderType('dine-in');
+        /*
+         * The discount belongs to the bill being walked away from, not to
+         * whatever is rung up next — left in state, a comp agreed for table 4
+         * silently priced the next stranger's order. (Opening or attaching a
+         * tab keeps the fields on purpose: there they mirror the discount the
+         * tab itself stores.)
+         */
+        setDiscountValue('');
+        setDiscountReason('');
+        setDiscountMode('amount');
         setNotice(cart.length > 0
             ? 'Tab left open. The unsent items are still in the cart.'
             : 'Tab left open — find it again under Open Tabs.');

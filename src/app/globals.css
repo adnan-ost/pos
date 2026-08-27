@@ -14,7 +14,13 @@
   /* Primary Brand Colors - Flames by the Indus */
   --primary: #F26513;
   --primary-hover: #D95511;
-  --primary-foreground: #ffffff;
+  /*
+   * Near-black, not white. White on the brand orange measures 3.16:1 —
+   * failing WCAG AA (4.5:1) on every primary button at the sizes this app
+   * uses. This warm near-black reads 5.9:1 on --primary and 4.9:1 on
+   * --primary-hover, so the CTA text passes on both states.
+   */
+  --primary-foreground: #1A0E05;
 
   /* Secondary / Accent */
   --accent: #f59e0b;

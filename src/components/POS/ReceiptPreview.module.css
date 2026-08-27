@@ -249,7 +249,7 @@
 
 .printBtn {
     background: var(--primary);
-    color: white;
+    color: var(--primary-foreground);
 }
 
 .cancelBtn:disabled,

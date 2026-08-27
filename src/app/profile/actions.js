@@ -14,8 +14,14 @@ export async function updatePassword(formData) {
         return { error: 'Passwords do not match' }
     }
 
-    if (password.length < 6) {
-        return { error: 'Password must be at least 6 characters' }
+    /*
+     * Exactly six digits — the same shape the login screen enforces. This form
+     * used to accept anything of six-plus characters, so a seven-digit PIN or
+     * one with a letter saved fine and then nobody could sign in with the
+     * account again: the login field refuses what this form had stored.
+     */
+    if (!/^\d{6}$/.test(password)) {
+        return { error: 'PIN must be exactly 6 digits' }
     }
 
     const { error } = await supabase.auth.updateUser({

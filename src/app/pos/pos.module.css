@@ -399,7 +399,7 @@
     height: 32px;
     border-radius: 50%;
     background: var(--primary);
-    color: white;
+    color: var(--primary-foreground);
     border: none;
     display: flex;
     align-items: center;
@@ -678,8 +678,14 @@
 }
 
 .qtyControls button {
-    width: 24px;
-    height: 24px;
+    /*
+     * 44px is the floor every touch guideline sets (Apple HIG 44pt, Material
+     * 48dp). These buttons decide how much a customer is charged, on a
+     * touchscreen till — at the old 24px, half of taps next to them were
+     * going somewhere else.
+     */
+    width: 44px;
+    height: 44px;
     border: 1px solid var(--border);
     background: var(--card);
     color: var(--foreground);
@@ -692,7 +698,7 @@
 
 .qtyControls button:hover {
     background: var(--primary);
-    color: white;
+    color: var(--primary-foreground);
     border-color: var(--primary);
 }
 
@@ -719,7 +725,11 @@
     border: none;
     color: var(--muted);
     cursor: pointer;
-    padding: 0.25rem;
+    /* Same 44px floor as the quantity controls: the icon stays 16px, the
+       target does not. */
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
