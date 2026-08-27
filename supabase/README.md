@@ -28,6 +28,10 @@ Run in order. Numbers reflect the order they were originally applied.
 | `12_order_idempotency.sql` | `orders.client_request_id` + unique index — makes a retried checkout safe |
 | `13_auto_print.sql` | `store_settings.auto_print` — print the receipt when payment is taken |
 | `14_kds_active_index.sql` | Partial index on live kitchen tickets — pairs with the narrowed KDS query |
+| `15_transactional_core.sql` | P1 tables: branches, order_rounds, order_items, payments, invoice_counters, audit_log |
+| `16_backfill_transactional_core.sql` | Explodes JSONB items into the P1 tables and self-verifies (raises on drift) — **needs 15 first** |
+| `17_order_rpcs.sql` | Atomic order RPCs: create/append/settle/void/bump — locks, idempotency, server totals — **needs 16 first** |
+| `18_orders_write_lockdown.sql` | ⚠️ **Hold until the RPC client deploy is live and verified** — removes direct order writes |
 
 Two ordering constraints worth respecting if you ever rebuild:
 
@@ -35,6 +39,15 @@ Two ordering constraints worth respecting if you ever rebuild:
 - `09_menu_images_storage.sql` creates a storage bucket, which needs the service
   role. Running it in the SQL Editor works; the app's anon/authenticated keys
   cannot create buckets.
+
+## tests/
+
+`p1_rpc_tests.sql` exercises the migration-17 RPCs end to end — idempotent
+replays, the expected-total check, double-settle refusal, sequential invoices,
+void reversal, the guarded KDS bump. It runs inside a transaction that always
+rolls back, so it is safe on any database, but rehearse on a branch DB first
+like everything else. The two-terminal race needs two sessions; the recipe is
+in the file header.
 
 ## seed/
 
