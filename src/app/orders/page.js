@@ -6,7 +6,7 @@ import {
 } from 'date-fns';
 import styles from './orders.module.css';
 import {
-    getOrdersPage, getUnpaidOrdersCount, updateOrderStatus, getMenuItems,
+    getOrdersPage, getUnpaidOrdersCount, bumpOrder, getMenuItems,
     cancelOrder, ORDERS_PAGE_SIZES
 } from '@/lib/supabaseDb';
 import ReceiptPreview from '@/components/POS/ReceiptPreview';
@@ -288,7 +288,7 @@ export default function OrdersPage() {
         if (currentIndex < flow.length - 1) {
             const nextStatus = flow[currentIndex + 1];
             try {
-                await updateOrderStatus(orderId, nextStatus);
+                await bumpOrder(orderId, currentStatus, nextStatus);
                 // State will auto-update via subscription, but for instant feedback:
                 load();
             } catch (error) {

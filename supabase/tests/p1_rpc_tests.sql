@@ -69,8 +69,12 @@ BEGIN
   ----------------------------------------------------------------------
   tab := create_order('[{"name":"Round1","price":500,"qty":1}]',
                       '{"payment_status":"unpaid","order_type":"dine-in"}');
-  tab := append_round(tab.id, '[{"name":"Round2 Naan","price":100,"qty":2}]', k_round);
+  tab := append_round(tab.id, '[{"name":"Round2 Naan","price":100,"qty":2}]', k_round,
+                      NULL, '{"table_number":"T7"}');
   IF tab.round_count <> 2 THEN RAISE EXCEPTION 'TEST 3: round_count %', tab.round_count; END IF;
+  IF tab.table_number IS DISTINCT FROM 'T7' THEN
+    RAISE EXCEPTION 'TEST 3: mid-sitting table correction lost (%)', tab.table_number;
+  END IF;
 
   tab := append_round(tab.id, '[{"name":"Round2 Naan","price":100,"qty":2}]', k_round); -- retry!
   IF tab.round_count <> 2 THEN RAISE EXCEPTION 'TEST 3: replay double-fired the round'; END IF;

@@ -291,6 +291,22 @@ export const cancelOrder = async (orderId, { reason, by } = {}) => {
         throw new Error('A reason is required to void an order.');
     }
 
+    // RPC path. The paid-order guard above stays client-side on purpose:
+    // void_order CAN reverse a paid bill in the ledger, but offering that at
+    // the till is a refund flow that arrives with P2's permissions.
+    try {
+        const { data, error } = await supabase.rpc('void_order', {
+            p_order_id: orderId,
+            p_reason: reason.trim(),
+            p_by: by || null,
+        });
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        if (!rpcMissing(error)) throw error;
+        console.warn('void_order RPC missing — run migrations 15–17; using legacy update');
+    }
+
     const now = new Date().toISOString();
     const { data, error } = await supabase
         .from('orders')
@@ -368,7 +384,74 @@ const totalsColumns = (totals) => ({
     ...(totals.discount > 0 && { discount: totals.discount }),
 });
 
+/*
+ * P1: every write that moves food or money goes through the atomic RPCs
+ * (migration 17) — row locks, idempotency, server-recomputed totals. Each
+ * wrapper falls back to its legacy direct-table path when the RPC isn't
+ * installed, so this client deploys safely against a database where
+ * migrations 15–17 haven't landed yet. Migration 18 retires the fallbacks
+ * by revoking direct writes — apply it only after this client is live.
+ */
+const rpcMissing = (error) =>
+    Boolean(error) && (
+        error.code === 'PGRST202' ||
+        /could not find the function|does not exist/i.test(error.message || '')
+    );
+
+const createOrderViaRpc = async (order) => {
+    const { data, error } = await supabase.rpc('create_order', {
+        p_items: order.items,
+        p_opts: {
+            payment_status: order.payment_status,
+            payment_mode: order.payment_mode,
+            order_type: order.order_type,
+            include_tax: order.include_tax,
+            discount: order.discount,
+            discount_reason: order.discount_reason,
+            table_number: order.table_number,
+            waiter_id: order.waiter_id,
+            waiter_name: order.waiter_name,
+            customer_name: order.customer_name,
+            customer_phone: order.customer_phone,
+            customer_address: order.customer_address,
+        },
+        p_client_request_id: order.client_request_id || null,
+        // The total the till showed the cashier. The server recomputes from
+        // the lines and refuses to store a bill that disagrees with what the
+        // customer was told.
+        p_expected_total: order.total ?? null,
+    });
+    if (error) throw error;
+    return data;
+};
+
 export const addOrder = async (order) => {
+    let data;
+    try {
+        data = await createOrderViaRpc(order);
+    } catch (error) {
+        if (!rpcMissing(error)) throw error;
+        console.warn('create_order RPC missing — run migrations 15–17; using legacy insert');
+        data = await addOrderDirect(order);
+    }
+
+    // Best-effort, and deliberately after the order is safely stored: the
+    // customer record is useful, but nothing about it is worth losing a sale
+    // over if the write fails.
+    if (order.customer_phone && data) {
+        recordCustomer({
+            name: order.customer_name,
+            phone: order.customer_phone,
+            address: order.customer_address,
+            spent: data.total || 0,
+        }).catch(err => console.error('Could not record customer', err));
+    }
+
+    return data;
+};
+
+// The pre-P1 insert path, kept only as the fallback above.
+const addOrderDirect = async (order) => {
     const now = new Date().toISOString();
     const orderData = {
         ...order,
@@ -438,19 +521,6 @@ export const addOrder = async (order) => {
     }
 
     if (error) throw error;
-
-    // Best-effort, and deliberately after the order is safely stored: the
-    // customer record is useful, but nothing about it is worth losing a sale
-    // over if the write fails.
-    if (orderData.customer_phone) {
-        recordCustomer({
-            name: orderData.customer_name,
-            phone: orderData.customer_phone,
-            address: orderData.customer_address,
-            spent: data.total || 0,
-        }).catch(err => console.error('Could not record customer', err));
-    }
-
     return data;
 };
 
@@ -526,6 +596,29 @@ export const findCustomerByPhone = async (phone) => {
     return data;
 };
 
+/*
+ * Kitchen/status transition, guarded: the write names the status it is
+ * moving FROM, so a stale bump — the board raced an append_round re-fire —
+ * loses and the caller gets the row as it truly is, instead of parking a
+ * ticket with uncooked food in 'ready'.
+ */
+export const bumpOrder = async (orderId, fromStatus, toStatus) => {
+    try {
+        const { data, error } = await supabase.rpc('bump_order', {
+            p_order_id: orderId,
+            p_from: fromStatus,
+            p_to: toStatus,
+        });
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        if (!rpcMissing(error)) throw error;
+        console.warn('bump_order RPC missing — run migrations 15–17; using legacy update');
+        return updateOrderStatus(orderId, toStatus);
+    }
+};
+
+// Legacy unguarded write, kept only as bumpOrder's fallback.
 export const updateOrderStatus = async (id, status) => {
     const { data, error } = await supabase
         .from('orders')
@@ -580,7 +673,29 @@ export const getOrderById = async (id) => {
  * Read-then-write: fine for a single POS terminal, but two terminals appending
  * to one tab in the same instant would have the later write win.
  */
-export const appendRoundToOrder = async (orderId, newItems, details = {}) => {
+export const appendRoundToOrder = async (orderId, newItems, details = {}, { clientRequestId } = {}) => {
+    // RPC path: the lock and the idempotency key make a retried or twin
+    // "send round" land exactly one round — the audit's last CRITICAL.
+    try {
+        const { data, error } = await supabase.rpc('append_round', {
+            p_order_id: orderId,
+            p_items: newItems,
+            p_client_request_id: clientRequestId || null,
+            p_expected_total: null, // settle carries the money check
+            p_opts: {
+                ...(details.include_tax !== undefined && { include_tax: details.include_tax }),
+                ...(details.table_number !== undefined && { table_number: details.table_number }),
+                ...(details.waiter_id !== undefined && { waiter_id: details.waiter_id }),
+                ...(details.waiter_name !== undefined && { waiter_name: details.waiter_name }),
+            },
+        });
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        if (!rpcMissing(error)) throw error;
+        console.warn('append_round RPC missing — run migrations 15–17; using legacy update');
+    }
+
     const order = await getOrderById(orderId);
 
     if (order.payment_status === 'paid') {
@@ -631,7 +746,30 @@ export const appendRoundToOrder = async (orderId, newItems, details = {}) => {
  * kitchen. A tab whose food is already out is done, so it also leaves the
  * kitchen board; one still being cooked stays there for the pass.
  */
-export const settleOrder = async (orderId, { paymentMode = 'cash', includeTax, discount, discountReason, invoiceNumber } = {}) => {
+export const settleOrder = async (orderId, {
+    paymentMode = 'cash', includeTax, discount, discountReason, invoiceNumber,
+    expectedTotal, clientRequestId,
+} = {}) => {
+    // RPC path: one row-locked transaction settles the bill, writes the
+    // payment, and mints the sequential invoice number. Two terminals racing
+    // on the same tab: one wins, the other is told the truth.
+    try {
+        const { data, error } = await supabase.rpc('settle_order', {
+            p_order_id: orderId,
+            p_method: paymentMode,
+            p_discount: discount ?? null,
+            p_discount_reason: discountReason ?? null,
+            p_include_tax: includeTax ?? null,
+            p_expected_total: expectedTotal ?? null,
+            p_client_request_id: clientRequestId || null,
+        });
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        if (!rpcMissing(error)) throw error;
+        console.warn('settle_order RPC missing — run migrations 15–17; using legacy update');
+    }
+
     const order = await getOrderById(orderId);
 
     if (order.payment_status === 'paid') {

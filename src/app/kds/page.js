@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import styles from './kds.module.css';
-import { getKitchenOrders, updateOrderStatus, getMenuItems } from '@/lib/supabaseDb';
+import { getKitchenOrders, bumpOrder, getMenuItems } from '@/lib/supabaseDb';
 import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import {
     getOrderNumber, buildImageMap, resolveItemImage, formatModifiers
@@ -156,7 +156,11 @@ export default function KDSPage() {
             : prev.map(o => (o.id === order.id ? { ...o, status: nextStatus } : o))
         );
         try {
-            await updateOrderStatus(order.id, nextStatus);
+            // Guarded by the status the board believed: if a new round
+            // re-fired this ticket first, the bump loses and the refetch
+            // shows the truth instead of parking uncooked food in Ready.
+            const result = await bumpOrder(order.id, order.status, nextStatus);
+            if (result && result.status !== nextStatus) loadOrders();
         } catch (error) {
             console.error('Failed to bump order', error);
             loadOrders(); // resync on failure

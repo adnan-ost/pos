@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import styles from './pos.module.css';
 import {
     getMenuItems, getCategories, addOrder, getModifiers, getWaiters,
@@ -90,6 +91,14 @@ export default function POSPage() {
         if (!requestIdRef.current) requestIdRef.current = crypto.randomUUID();
         return requestIdRef.current;
     };
+
+    /*
+     * Same idea, per action: one id per round-send and one per settle
+     * attempt, reused if the call fails so the retry replays instead of
+     * duplicating, cleared when the action succeeds or the context changes.
+     */
+    const roundRequestIdRef = useRef(null);
+    const settleRequestIdRef = useRef(null);
 
     // Order details
     const [waiters, setWaiters] = useState([]);
@@ -346,8 +355,6 @@ export default function POSPage() {
         ...(totals.discount > 0 && { discount: totals.discount }),
     });
 
-    const newInvoiceNumber = () => `FBR-${Date.now().toString().slice(-6)}`;
-
     /*
      * Sends the receipt on screen to the printer.
      *
@@ -409,6 +416,8 @@ export default function POSPage() {
         setCustomerFound(false);
         setPendingInvoiceNo(null);
         requestIdRef.current = null;
+        roundRequestIdRef.current = null;
+        settleRequestIdRef.current = null;
         // The order is on the server now, so the local copy is no longer a
         // recovery aid — leaving it would resurrect a completed sale.
         clearCartDraft();
@@ -470,11 +479,10 @@ export default function POSPage() {
         setDiscountMode('amount'); // stored as rupees, whatever was typed to get there
         setDiscountValue(tabDiscount > 0 ? String(tabDiscount) : '');
         setDiscountReason(tabDiscount > 0 ? target.discount_reason || '' : '');
-        // A tab opened before invoice numbers were stored needs one minted at
-        // settle time; one that already has a number keeps it.
-        if (mode === 'settle' && !target.invoice_number) {
-            setPendingInvoiceNo(newInvoiceNumber());
-        }
+        // A different bill: this settle gets its own idempotency id, and any
+        // number on screen belongs to the order that already carries it.
+        settleRequestIdRef.current = null;
+        setPendingInvoiceNo(null);
         setShowTabs(false);
         setReceiptMode(mode);
     };
@@ -499,6 +507,7 @@ export default function POSPage() {
         setDiscountValue('');
         setDiscountReason('');
         setDiscountMode('amount');
+        settleRequestIdRef.current = null;
         setNotice(cart.length > 0
             ? 'Tab left open. The unsent items are still in the cart.'
             : 'Tab left open — find it again under Open Tabs.');
@@ -508,9 +517,9 @@ export default function POSPage() {
 
     const handleCheckout = () => {
         if (cart.length === 0) return;
-        // Fixed now rather than at print time so the number stored on the order
-        // is the number on the paper, and a reprint is the same document.
-        setPendingInvoiceNo(newInvoiceNumber());
+        // The invoice number is the server's to give: settle_order mints it
+        // sequentially and returns it, and the receipt fills in just before
+        // printing. Nothing is promised on screen that the store didn't issue.
         // Normally already minted with the first line; a draft saved by an
         // older build has none, so mint lazily rather than checking out unsafe.
         ensureRequestId();
@@ -521,11 +530,10 @@ export default function POSPage() {
     const handlePayNow = async () => {
         setIsSending(true);
         try {
-            await addOrder({
+            const saved = await addOrder({
                 items: cart.map(item => ({ ...item, round: 1 })),
                 ...billColumns(billTotals),
                 discount_reason: discountAmount > 0 ? discountReason.trim() || null : null,
-                invoice_number: pendingInvoiceNo,
                 client_request_id: ensureRequestId(),
                 include_tax: includeTax,
                 order_type: orderType,
@@ -534,6 +542,13 @@ export default function POSPage() {
                 payment_status: 'paid',
                 payment_mode: paymentMode
             });
+            /*
+             * The server minted the invoice number inside the settle; the
+             * receipt on screen must show it before the paper does. flushSync
+             * because printReceipt() reads the DOM synchronously next line —
+             * a queued render would print the placeholder.
+             */
+            flushSync(() => setPendingInvoiceNo(saved?.invoice_number || null));
             // Stored, so it's safe to hand over paper. Before clearOrderFields,
             // which unmounts the receipt being printed.
             printIfEnabled();
@@ -583,11 +598,15 @@ export default function POSPage() {
     const handleSendRound = async () => {
         if (!tab || cart.length === 0) return;
         setIsSending(true);
+        // One id per round-send, reused on retry: a timeout followed by a
+        // second tap must cook this food once.
+        if (!roundRequestIdRef.current) roundRequestIdRef.current = crypto.randomUUID();
         try {
             await appendRoundToOrder(tab.id, cart, {
                 include_tax: includeTax,
                 ...orderDetails()
-            });
+            }, { clientRequestId: roundRequestIdRef.current });
+            roundRequestIdRef.current = null;
             await loadTabs();
             setCart([]);
             setNotice(`Round ${nextRound} sent to the kitchen.`);
@@ -610,14 +629,21 @@ export default function POSPage() {
             return;
         }
         setIsSending(true);
+        if (!settleRequestIdRef.current) settleRequestIdRef.current = crypto.randomUUID();
         try {
-            await settleOrder(tab.id, {
+            const settled = await settleOrder(tab.id, {
                 paymentMode,
                 includeTax,
                 discount: discountAmount,
                 discountReason: discountAmount > 0 ? discountReason.trim() || null : null,
-                invoiceNumber: pendingInvoiceNo,
+                // The bill as shown; the server refuses to settle a different one.
+                expectedTotal: billTotals.total,
+                clientRequestId: settleRequestIdRef.current,
             });
+            settleRequestIdRef.current = null;
+            // Same as pay-now: the paper must carry the number the server
+            // issued, so flush it into the receipt before printing.
+            flushSync(() => setPendingInvoiceNo(settled?.invoice_number || null));
             printIfEnabled();
             await loadTabs();
             clearOrderFields();

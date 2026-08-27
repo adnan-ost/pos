@@ -325,7 +325,10 @@ CREATE OR REPLACE FUNCTION append_round(
   p_order_id UUID,
   p_items JSONB,
   p_client_request_id UUID DEFAULT NULL,
-  p_expected_total NUMERIC DEFAULT NULL
+  p_expected_total NUMERIC DEFAULT NULL,
+  -- Mid-sitting corrections the floor makes while adding food: table moved,
+  -- shift changed the waiter, tax toggled. Only these keys are honoured.
+  p_opts JSONB DEFAULT '{}'::jsonb
 ) RETURNS orders
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -377,7 +380,14 @@ BEGIN
   UPDATE orders SET
     round_count = v_round_no,
     last_round_at = now(),
-    status = 'new'            -- back to the top of the kitchen board
+    status = 'new',           -- back to the top of the kitchen board
+    include_tax = COALESCE((p_opts->>'include_tax')::boolean, include_tax),
+    table_number = CASE WHEN p_opts ? 'table_number'
+                        THEN NULLIF(p_opts->>'table_number', '') ELSE table_number END,
+    waiter_id = CASE WHEN p_opts ? 'waiter_id'
+                     THEN NULLIF(p_opts->>'waiter_id', '')::uuid ELSE waiter_id END,
+    waiter_name = CASE WHEN p_opts ? 'waiter_name'
+                       THEN NULLIF(p_opts->>'waiter_name', '') ELSE waiter_name END
   WHERE id = p_order_id;
 
   v_order := _recompute_order(p_order_id);
@@ -486,13 +496,13 @@ REVOKE ALL ON FUNCTION _recompute_order(UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION _insert_round_items(UUID, UUID, INT, INT, JSONB) FROM PUBLIC, anon, authenticated;
 
 REVOKE ALL ON FUNCTION create_order(JSONB, JSONB, UUID, NUMERIC) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION append_round(UUID, JSONB, UUID, NUMERIC) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION append_round(UUID, JSONB, UUID, NUMERIC, JSONB) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION settle_order(UUID, TEXT, NUMERIC, TEXT, BOOLEAN, NUMERIC, UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION void_order(UUID, TEXT, TEXT) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION bump_order(UUID, TEXT, TEXT) FROM PUBLIC, anon;
 
 GRANT EXECUTE ON FUNCTION create_order(JSONB, JSONB, UUID, NUMERIC) TO authenticated;
-GRANT EXECUTE ON FUNCTION append_round(UUID, JSONB, UUID, NUMERIC) TO authenticated;
+GRANT EXECUTE ON FUNCTION append_round(UUID, JSONB, UUID, NUMERIC, JSONB) TO authenticated;
 GRANT EXECUTE ON FUNCTION settle_order(UUID, TEXT, NUMERIC, TEXT, BOOLEAN, NUMERIC, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION void_order(UUID, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION bump_order(UUID, TEXT, TEXT) TO authenticated;

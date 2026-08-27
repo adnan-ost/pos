@@ -19,11 +19,14 @@ const ReceiptPreview = ({
     orderDate = null, reprint = false
 }) => {
     const [settings, setSettings] = useState(null);
-    // Generated once per receipt: rolling it during render changed the invoice
-    // number (and the QR it encodes) every time the component re-rendered
-    const [invoiceNo] = useState(
-        () => invoiceNumber || `FBR-${Math.floor(100000 + Math.random() * 900000)}`
-    );
+    /*
+     * The invoice number is the server's, minted at settle. It arrives as a
+     * prop — possibly only after payment lands, flushed in just before
+     * printing — so it is read live, never pinned. The old client-side
+     * fallback generator is gone: paper either carries the issued number or
+     * honestly says the sale hasn't been numbered yet.
+     */
+    const invoiceNo = invoiceNumber || null;
     // Pinned on open for the same reason as the invoice number: read fresh on
     // every render, the printed time drifted between preview and print. A
     // reprint carries the original sale's date — the document is a copy of
@@ -64,7 +67,7 @@ const ReceiptPreview = ({
     // and a receipt that won't open means a bill that can't be settled. A
     // missing QR is recoverable at the till; a blank screen is not.
     let qrPayload = null;
-    if (qrAllowed) {
+    if (qrAllowed && invoiceNo) {
         try {
             qrPayload = generateEMVCoPayload({
                 raastId: settings.raast_id,
@@ -98,7 +101,7 @@ const ReceiptPreview = ({
                         {includeTax && (
                             <div className={styles.fbrHeader}>
                                 <img src="/fbr-logo.png" alt="FBR" className={styles.fbrLogo} />
-                                <span>FBR Invoice: {invoiceNo}</span>
+                                <span>FBR Invoice: {invoiceNo || 'issued at payment'}</span>
                             </div>
                         )}
                     </div>
