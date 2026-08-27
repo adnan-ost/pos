@@ -250,7 +250,9 @@ DECLARE
 BEGIN
   -- Idempotent replay: the same attempt returns the order it already made,
   -- indistinguishable from the first success. DO-NOTHING semantics — never
-  -- touch a ticket the kitchen may already be cooking.
+  -- touch a ticket the kitchen may already be cooking. The ON CONFLICT on
+  -- the INSERT below covers the concurrent case this pre-check can't: two
+  -- identical attempts in flight at once (a double-tap under latency).
   IF p_client_request_id IS NOT NULL THEN
     SELECT * INTO v_order FROM orders WHERE client_request_id = p_client_request_id;
     IF FOUND THEN RETURN v_order; END IF;
@@ -281,7 +283,14 @@ BEGIN
      NULLIF(p_opts->>'customer_phone', ''),
      NULLIF(p_opts->>'customer_address', ''),
      1, now(), p_client_request_id, now(), now())
+  ON CONFLICT (client_request_id) DO NOTHING
   RETURNING * INTO v_order;
+
+  -- Lost the race to our own twin: the other attempt's order is the order.
+  IF v_order.id IS NULL THEN
+    SELECT * INTO v_order FROM orders WHERE client_request_id = p_client_request_id;
+    RETURN v_order;
+  END IF;
 
   INSERT INTO order_rounds (order_id, branch_id, round_no, fired_at, client_request_id)
   VALUES (v_order.id, v_order.branch_id, 1, now(), p_client_request_id)
@@ -340,6 +349,16 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Order % not found', p_order_id;
   END IF;
+
+  -- Re-checked under the lock: a twin of this request that held the lock
+  -- first has committed its round by the time we get here, and the pre-lock
+  -- check above ran too early to see it.
+  IF p_client_request_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM order_rounds WHERE client_request_id = p_client_request_id
+  ) THEN
+    RETURN v_order;
+  END IF;
+
   IF v_order.payment_status = 'paid' THEN
     RAISE EXCEPTION 'This bill has already been settled.';
   END IF;
