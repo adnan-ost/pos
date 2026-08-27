@@ -6,8 +6,6 @@
 // when that value can't be read: offline, or the migration not yet run.
 export const DEFAULT_TAX_RATE = 0.16;
 
-// Old name kept so existing imports keep working.
-export const TAX_RATE = DEFAULT_TAX_RATE;
 
 /*
  * Discount comes off the subtotal and tax is charged on what remains. That

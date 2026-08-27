@@ -21,7 +21,8 @@ Deep references in the repo — consult before designing, don't re-derive:
   sections, KDS views, permission verbs, Master Settings switches, report catalog,
   and the adoption table mapping each finding to a phase.
 - `docs/blink-screens/*.png` — screenshots of the key screens.
-- `qa-review.md` — the 57-finding audit behind P0.
+- The 57-finding QA audit behind P0 was retired from the tree once P0 shipped;
+  read it from history if needed: `git show 3c640d7:qa-review.md`.
 
 ## Money math (use these words and this order)
 

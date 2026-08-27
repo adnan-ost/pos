@@ -1,5 +1,5 @@
 # Flames POS — Product & Technical Roadmap
-*Blink POS-inspired evolution plan · drafted 20 Aug 2026 · sources: `blink-pos-architecture.md`, blinkco.io, full codebase inventory, 57-finding QA audit (qa-review.md)*
+*Blink POS-inspired evolution plan · drafted 20 Aug 2026 · sources: `blink-pos-architecture.md`, blinkco.io, full codebase inventory, 57-finding QA audit (retired from the tree; `git show 3c640d7:qa-review.md`)*
 
 **Scope decisions locked with owner:** QR dine-in ordering **in roadmap** · inventory goes **all the way to procurement** (suppliers/POs/GRN) · aggregator **channel tracking now, Foodpanda API later**.
 

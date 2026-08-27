@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { formatDateTime } from '@/lib/timeFormat'
 import { getDashboardStats } from './actions'
 import {
@@ -40,7 +40,6 @@ export default function ReportsPage() {
     const [toDate, setToDate] = useState('')
     const [stats, setStats] = useState(null)
     const [loading, setLoading] = useState(true)
-    const printRef = useRef(null)
 
     useEffect(() => {
         // Deliberate: this effect re-runs whenever the date range changes, and the
@@ -94,7 +93,7 @@ export default function ReportsPage() {
     }
 
     return (
-        <div className="w-full px-4 sm:px-6 lg:px-10 py-6 sm:py-8 space-y-8 bg-gray-950 min-h-screen text-gray-100" id="report-root" ref={printRef}>
+        <div className="w-full px-4 sm:px-6 lg:px-10 py-6 sm:py-8 space-y-8 bg-gray-950 min-h-screen text-gray-100" id="report-root">
 
             {/* Print-only masthead: the interactive header below is hidden when printing */}
             <div className="report-print-header hidden">
