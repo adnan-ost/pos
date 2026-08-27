@@ -9,7 +9,14 @@ import styles from './ReceiptPreview.module.css';
 const ROLE_LABEL = { admin: 'Admin', staff: 'Staff' };
 
 const ReceiptPreview = ({
-    cart, totals, includeTax, invoiceNumber, meta, printLabel, role, busy, onClose, onPrint
+    cart, totals, includeTax, invoiceNumber, meta, printLabel, role, busy, onClose, onPrint,
+    /*
+     * Reprint mode. `orderDate` is the original sale's timestamp and `reprint`
+     * marks the paper as a copy. Without these a reprint stamped today's date
+     * on last week's bill — two documents for one sale, each asserting a
+     * different day, which is exactly what a tax inspection reads as fraud.
+     */
+    orderDate = null, reprint = false
 }) => {
     const [settings, setSettings] = useState(null);
     // Generated once per receipt: rolling it during render changed the invoice
@@ -18,8 +25,10 @@ const ReceiptPreview = ({
         () => invoiceNumber || `FBR-${Math.floor(100000 + Math.random() * 900000)}`
     );
     // Pinned on open for the same reason as the invoice number: read fresh on
-    // every render, the printed time drifted between preview and print.
-    const [date] = useState(() => formatDateTime(new Date()));
+    // every render, the printed time drifted between preview and print. A
+    // reprint carries the original sale's date — the document is a copy of
+    // that bill, not a new one.
+    const [date] = useState(() => formatDateTime(orderDate ? new Date(orderDate) : new Date()));
 
     /*
      * `settingsLoaded` tracks the request finishing, not whether it returned
@@ -93,6 +102,10 @@ const ReceiptPreview = ({
                             </div>
                         )}
                     </div>
+
+                    {/* A copy must say it's a copy: two clean prints of one
+                        sale is how a bill gets presented twice. */}
+                    {reprint && <div className={styles.reprintBanner}>REPRINT — COPY OF ORIGINAL</div>}
 
                     {/* Meta */}
                     <div className={styles.meta}>

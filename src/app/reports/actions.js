@@ -2,16 +2,56 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { startOfDay, endOfDay, subDays, differenceInMilliseconds, format, parseISO } from 'date-fns'
+import { subDays, differenceInMilliseconds } from 'date-fns'
+
+/*
+ * All bucketing happens on the restaurant's clock, not the server's.
+ *
+ * These server actions run wherever the host happens to be — UTC in
+ * production — so new Date().getHours() and date-fns' startOfDay() describe
+ * the *server's* day: "today" began at 5am Karachi time and the dinner rush
+ * landed in tomorrow's bucket. Interim JS fix; the permanent one moves
+ * aggregation into SQL with AT TIME ZONE in P3.
+ *
+ * PKT is UTC+5 year-round (Pakistan abolished DST in 2009), so the fixed
+ * offset in the day-boundary helpers is safe.
+ */
+const KARACHI_TZ = 'Asia/Karachi'
+
+// 'YYYY-MM-DD' of an instant on the Karachi calendar (en-CA emits ISO order)
+const karachiDateStr = (date) => date.toLocaleDateString('en-CA', { timeZone: KARACHI_TZ })
+
+// The instants a Karachi calendar day begins and ends
+const karachiDayStart = (ymd) => new Date(`${ymd}T00:00:00.000+05:00`)
+const karachiDayEnd = (ymd) => new Date(`${ymd}T23:59:59.999+05:00`)
+
+// 0–23 hour of an instant on the Karachi clock (h23 so midnight is 0, not 24)
+const karachiHour = (isoString) => Number(
+    new Date(isoString).toLocaleString('en-US', { timeZone: KARACHI_TZ, hour: '2-digit', hourCycle: 'h23' })
+)
+
+// 'Aug 27' — chart bucket label, on the Karachi calendar
+const karachiDayLabel = (isoString) =>
+    new Date(isoString).toLocaleDateString('en-US', { timeZone: KARACHI_TZ, month: 'short', day: '2-digit' })
+
+/*
+ * An open tab is food fired, not money taken. Every revenue-shaped number
+ * counts settled orders only; what the floor still owes is reported alongside
+ * as its own figure instead of being folded into takings that could then
+ * shrink when a tab is voided — or double when it settles.
+ */
+const isSettled = (order) => order.payment_status !== 'unpaid'
 
 // Aggregate a set of orders into the numbers the dashboard needs.
 function summarize(orders) {
-    const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0)
-    const totalOrders = orders.length
+    const settled = orders.filter(isSettled)
+    const open = orders.filter(o => !isSettled(o))
+    const totalRevenue = settled.reduce((sum, order) => sum + (order.total || 0), 0)
+    const totalOrders = settled.length
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
     const itemCounts = {}
-    orders.forEach(order => {
+    settled.forEach(order => {
         if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
                 const name = item.name
@@ -32,8 +72,8 @@ function summarize(orders) {
      */
 
     // Total tax collected — needed for filing, and previously nowhere on screen.
-    const totalTax = orders.reduce((sum, order) => sum + (Number(order.tax) || 0), 0)
-    const totalDiscount = orders.reduce((sum, order) => sum + (Number(order.discount) || 0), 0)
+    const totalTax = settled.reduce((sum, order) => sum + (Number(order.tax) || 0), 0)
+    const totalDiscount = settled.reduce((sum, order) => sum + (Number(order.discount) || 0), 0)
 
     /*
      * Cash vs card, plus what's still owed on open tabs. Counted by amount and
@@ -66,8 +106,8 @@ function summarize(orders) {
     // at zero, so the shape of a service is readable rather than inferred from
     // gaps.
     const hourly = Array.from({ length: 24 }, (_, hour) => ({ hour, label: hourLabel(hour), revenue: 0, orders: 0 }))
-    orders.forEach(order => {
-        const hour = new Date(order.created_at).getHours()
+    settled.forEach(order => {
+        const hour = karachiHour(order.created_at)
         hourly[hour].revenue += Number(order.total) || 0
         hourly[hour].orders += 1
     })
@@ -75,7 +115,7 @@ function summarize(orders) {
     // Per-server takings. waiter_name is denormalised onto the order, so this
     // still attributes correctly after someone leaves.
     const waiterTotals = {}
-    orders.forEach(order => {
+    settled.forEach(order => {
         const name = order.waiter_name
         if (!name) return
         if (!waiterTotals[name]) waiterTotals[name] = { name, revenue: 0, orders: 0 }
@@ -87,6 +127,10 @@ function summarize(orders) {
         totalRevenue, totalOrders, avgOrderValue, itemCounts,
         totalTax, totalDiscount, paymentMix, hourly,
         waiters: Object.values(waiterTotals).sort((a, b) => b.revenue - a.revenue),
+        openTabs: {
+            count: open.length,
+            amount: open.reduce((sum, order) => sum + (Number(order.total) || 0), 0),
+        },
     }
 }
 
@@ -107,22 +151,18 @@ function trendPct(current, previous) {
 export async function getDashboardStats(range = 'today', endDateStr = null) {
     const supabase = await createClient()
 
-    // Determine date range
+    // Date range, in Karachi days: "today" is the restaurant's today, and a
+    // date picked in the filter means that calendar day in Karachi — not the
+    // server's timezone rendering of it.
     const now = new Date()
-    let startDate = startOfDay(now)
-    let endDate = endOfDay(now)
+    let startDate = karachiDayStart(karachiDateStr(now))
+    let endDate = karachiDayEnd(karachiDateStr(now))
 
     // Check if range is a specific date (YYYY-MM-DD) or date range
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (dateRegex.test(range)) {
-        const specificDate = parseISO(range);
-        startDate = startOfDay(specificDate);
-        // If endDateStr is provided, use it; otherwise use the same day
-        if (endDateStr && dateRegex.test(endDateStr)) {
-            endDate = endOfDay(parseISO(endDateStr));
-        } else {
-            endDate = endOfDay(specificDate);
-        }
+        startDate = karachiDayStart(range);
+        endDate = karachiDayEnd(endDateStr && dateRegex.test(endDateStr) ? endDateStr : range);
     } else if (range === '7days') {
         startDate = subDays(now, 7)
     } else if (range === '30days') {
@@ -160,10 +200,11 @@ export async function getDashboardStats(range = 'today', endDateStr = null) {
     const current = summarize(orders)
     const previous = summarize(prevOrders)
 
-    // Chart Data: Sales over time
+    // Chart Data: Sales over time. Settled money only, on Karachi days —
+    // matching the revenue tile the chart sits under.
     const salesByDate = {}
-    orders.forEach(order => {
-        const dateStr = format(parseISO(order.created_at), 'MMM dd')
+    orders.filter(isSettled).forEach(order => {
+        const dateStr = karachiDayLabel(order.created_at)
         if (!salesByDate[dateStr]) {
             salesByDate[dateStr] = { date: dateStr, sales: 0, orders: 0 }
         }
@@ -200,6 +241,7 @@ export async function getDashboardStats(range = 'today', endDateStr = null) {
         trendingItems,
         totalTax: current.totalTax,
         totalDiscount: current.totalDiscount,
+        openTabs: current.openTabs,
         paymentMix: current.paymentMix,
         // Trimmed to the trading part of the day so the chart isn't mostly empty
         // bars, but kept whole if the kitchen genuinely ran round the clock.

@@ -106,6 +106,20 @@
     filter: brightness(0);
 }
 
+/* Unmissable on a one-colour thermal print: bordered, spaced capitals rather
+   than a grey watermark that dithers away. */
+.reprintBanner {
+    text-align: center;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: #000;
+    border-top: 1px dashed #000;
+    border-bottom: 1px dashed #000;
+    padding: 3px 0;
+    margin: 6px 0;
+}
+
 .meta {
     display: flex;
     justify-content: space-between;

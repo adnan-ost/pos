@@ -219,21 +219,24 @@ h6 {
  * so Chrome drops the declaration and silently prints US Letter, paginating a
  * long receipt. Verified empirically — the height has to be a real length.
  */
-@page {
-  size: 80mm 297mm;
-  margin: 0;
-}
-
 @media print {
   /*
-   * Hide everything, then re-show one subtree.
+   * Hide everything, then re-show one subtree — but only when a receipt is
+   * actually on screen. Unscoped, this blanked every other print in the app:
+   * Reports' "Export PDF" went through window.print() on a page with no
+   * receipt mounted, so everything was hidden and nothing re-shown.
+   * (:has() is fine here — the till runs kiosk Chrome.)
    *
    * visibility rather than display: the receipt sits inside a position: fixed
    * overlay, and display:none on its ancestors would take the receipt with it.
    * visibility is inherited but can be overridden on a descendant, which is
    * exactly the behaviour needed here.
+   *
+   * No @page here for the same reason: page size is per document, not per
+   * selector, so an 80mm rule in a global sheet would also shape the Reports
+   * PDF. printReceipt() injects the measured roll size only while it prints.
    */
-  body * {
+  body:has(#receipt-print-root) * {
     visibility: hidden;
   }
 

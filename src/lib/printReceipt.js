@@ -47,10 +47,21 @@ export const printReceipt = () => {
             style.id = STYLE_ID;
             document.head.appendChild(style);
         }
-        // Later in the cascade than the fallback in globals.css, so this wins.
+        // The only @page in the app. It used to be a fallback over a global
+        // 80mm rule, but @page can't be scoped to a selector — the global rule
+        // was sizing the Reports PDF to a receipt roll too.
         style.textContent = `@page { size: ${RECEIPT_WIDTH_MM}mm ${heightMm}mm; margin: 0; }`;
 
         window.print();
+
+        /*
+         * Remove the rule once the job is spooled. The style element outlives
+         * navigation in an SPA, so leaving it meant every later print from any
+         * screen — Reports' PDF export included — inherited an 80mm page.
+         * window.print() blocks until the dialog closes (or returns after
+         * spooling under --kiosk-printing), so the rule has served by now.
+         */
+        style.remove();
     } catch (error) {
         // The sale is already stored by the time this runs; a print failure must
         // never surface as a failed order.

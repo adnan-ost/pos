@@ -187,7 +187,7 @@ export default function ReportsPage() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                 <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800 flex items-center justify-between report-card">
                     <div>
                         <p className="text-sm font-medium text-gray-400 mb-1">Total Revenue</p>
@@ -220,6 +220,23 @@ export default function ReportsPage() {
                         <TrendingUp className="h-6 w-6 text-purple-500" />
                     </div>
                 </div>
+
+                {/* Money the floor still owes. Deliberately its own tile rather
+                    than part of revenue: an open tab can still be voided, and
+                    folding it in would overstate takings — the audit's biggest
+                    reporting finding. */}
+                <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800 flex items-center justify-between report-card">
+                    <div>
+                        <p className="text-sm font-medium text-gray-400 mb-1">Open Tabs</p>
+                        <h3 className="text-2xl font-bold text-white">Rs. {Math.round(stats.openTabs?.amount || 0).toLocaleString()}</h3>
+                        <p className="mt-2 text-xs text-gray-500">
+                            {stats.openTabs?.count || 0} unpaid {(stats.openTabs?.count || 0) === 1 ? 'tab' : 'tabs'} — not in revenue
+                        </p>
+                    </div>
+                    <div className="h-12 w-12 bg-amber-900/20 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Receipt className="h-6 w-6 text-amber-500" />
+                    </div>
+                </div>
             </div>
 
             {/* Money breakdown. All of this comes from columns the till was
@@ -238,8 +255,12 @@ export default function ReportsPage() {
                         ].filter(({ key }) => key !== 'unrecorded' || (stats.paymentMix?.unrecorded?.count || 0) > 0)
                             .map(({ key, label, color }) => {
                             const row = stats.paymentMix?.[key] || { amount: 0, count: 0 }
-                            const share = stats.totalRevenue > 0
-                                ? Math.round((row.amount / stats.totalRevenue) * 100)
+                            // Share of all money in the mix (settled + open tabs);
+                            // totalRevenue no longer contains the unpaid bucket.
+                            const mixTotal = Object.values(stats.paymentMix || {})
+                                .reduce((sum, r) => sum + (r?.amount || 0), 0)
+                            const share = mixTotal > 0
+                                ? Math.round((row.amount / mixTotal) * 100)
                                 : 0
                             return (
                                 <div key={key}>

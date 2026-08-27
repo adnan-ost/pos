@@ -765,6 +765,10 @@ export default function OrdersPage() {
                     totals={receiptTotals}
                     includeTax={receiptOrder.include_tax ?? true}
                     invoiceNumber={receiptOrder.invoice_number || undefined}
+                    /* The bill's own date: when it was paid, or failing that
+                       when it was taken — never the day of the reprint. */
+                    orderDate={receiptOrder.paid_at || receiptOrder.created_at}
+                    reprint
                     meta={{
                         orderNumber: getOrderNumber(receiptOrder),
                         table: receiptOrder.table_number,
