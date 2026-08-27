@@ -54,3 +54,16 @@ menu-photo-review.html
 menu-images-v2/
 menu-photo-review-2.html
 menu-photo-review-final.html
+
+# Menu photography masters — 15MB, mirrored in Supabase Storage
+menu-images/
+*.zip
+
+# Local QA review list
+qa-review.html
+
+# Session-local Claude Code permissions
+.claude/settings.local.json
+
+# Marketing image assets — large binaries, kept out of the code repo
+social-media/
