@@ -150,14 +150,41 @@ export const getWaiters = async () => {
 
 // ==================== ORDERS ====================
 
-export const getOrders = async () => {
+/*
+ * The statuses a ticket is still work for the kitchen. 'completed' and
+ * 'cancelled' are done with, so the board never asks for them.
+ */
+export const KITCHEN_STATUSES = ['new', 'preparing', 'ready'];
+
+/*
+ * Exactly the columns a ticket renders. Spelling them out keeps the receipt
+ * snapshot's neighbours — totals, customer details, payment fields — off a
+ * screen that displays none of them.
+ */
+const KITCHEN_COLUMNS =
+    'id, order_number, status, order_type, table_number, waiter_name, ' +
+    'payment_status, items, notes, round_count, created_at, last_round_at';
+
+/*
+ * Live tickets for the kitchen display.
+ *
+ * Filtered in Postgres rather than in the browser. The board refetches on every
+ * realtime event and every 15 seconds all service, and it used to pull every
+ * order the restaurant had ever taken — each with its full JSONB item snapshot
+ * — to render the dozen that are actually live. That query gets heavier every
+ * week the till runs, on the one screen that must never stall.
+ */
+export const getKitchenOrders = async () => {
     const { data, error } = await supabase
         .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select(KITCHEN_COLUMNS)
+        .in('status', KITCHEN_STATUSES)
+        // Oldest fired first, matching how the kitchen works the board; the
+        // partial index in migration 14 serves both the filter and this order.
+        .order('last_round_at', { ascending: true });
 
     if (error) {
-        console.error('Error fetching orders:', error);
+        console.error('Error fetching kitchen orders:', error);
         return [];
     }
     return data;

@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import styles from './kds.module.css';
-import { getOrders, updateOrderStatus, getMenuItems } from '@/lib/supabaseDb';
+import { getKitchenOrders, updateOrderStatus, getMenuItems } from '@/lib/supabaseDb';
 import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import {
     getOrderNumber, buildImageMap, resolveItemImage, formatModifiers
@@ -11,7 +11,9 @@ import { isLatestRound } from '@/lib/orderTotals';
 import LiveClock from '@/components/Layout/LiveClock';
 import { UtensilsCrossed, Volume2, VolumeX, Maximize2, UserRound, Layers } from 'lucide-react';
 
-// Kitchen lanes, in the order tickets flow across the screen
+// Kitchen lanes, in the order tickets flow across the screen. These keys are
+// the statuses getKitchenOrders() fetches (KITCHEN_STATUSES in supabaseDb.js) —
+// a lane added here without adding it there would render permanently empty.
 const LANES = [
     { key: 'new', label: 'New', next: 'preparing', action: 'Start' },
     { key: 'preparing', label: 'Preparing', next: 'ready', action: 'Ready' },
@@ -87,8 +89,9 @@ export default function KDSPage() {
 
     const loadOrders = useCallback(async () => {
         try {
-            const data = await getOrders();
-            const active = data.filter(o => LANES.some(l => l.key === o.status));
+            // Already narrowed to the live statuses by the query, so what
+            // comes back is the board.
+            const active = await getKitchenOrders();
 
             /*
              * Chime for food the kitchen has not been told about yet: a ticket

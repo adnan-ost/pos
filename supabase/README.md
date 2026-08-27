@@ -27,6 +27,7 @@ Run in order. Numbers reflect the order they were originally applied.
 | `11_pos_operations.sql` | Voids, discounts, invoice numbers, delivery address, configurable tax rate, order indexes |
 | `12_order_idempotency.sql` | `orders.client_request_id` + unique index — makes a retried checkout safe |
 | `13_auto_print.sql` | `store_settings.auto_print` — print the receipt when payment is taken |
+| `14_kds_active_index.sql` | Partial index on live kitchen tickets — pairs with the narrowed KDS query |
 
 Two ordering constraints worth respecting if you ever rebuild:
 

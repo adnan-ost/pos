@@ -8,6 +8,12 @@
  * server.
  */
 
+/*
+ * Alongside the basket this carries `requestId` — the id that makes that
+ * basket's checkout safe to retry. It belongs here rather than in memory
+ * precisely because the crash is the case it exists for: without it a recovered
+ * order that had actually landed before the tablet died would be rung up twice.
+ */
 const KEY = 'pos:draft:v1';
 
 /*

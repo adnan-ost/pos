@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import styles from './pos.module.css';
 import {
     getMenuItems, getCategories, addOrder, getModifiers, getWaiters,
@@ -67,14 +67,29 @@ export default function POSPage() {
     const [pendingInvoiceNo, setPendingInvoiceNo] = useState(null);
 
     /*
-     * One id per checkout attempt, reused on retry.
+     * One id per basket, reused on every retry of that basket's checkout.
      *
      * Without it a timeout during checkout is unrecoverable: the cashier can't
      * tell whether the order landed, retries, and gets a second order because
-     * addOrder mints a fresh order_number each call. Deliberately NOT cleared in
-     * the error path — reusing it is the whole point.
+     * addOrder mints a fresh order_number each call.
+     *
+     * Minted when the first line lands rather than when the receipt opens, and
+     * saved with the cart draft — closing the receipt and reopening it, or a
+     * reload mid-sale, used to mint a fresh id, which is the same as having
+     * none. Deliberately NOT cleared in an error path: reusing it there is the
+     * entire point. It IS cleared once the basket is stored, and when the cart
+     * is emptied, so a new basket can never inherit an id the server has
+     * already accepted.
+     *
+     * A ref rather than state: nothing renders it, and the handlers need the
+     * value that is true now, not the one from the last render.
      */
-    const [pendingRequestId, setPendingRequestId] = useState(null);
+    const requestIdRef = useRef(null);
+
+    const ensureRequestId = () => {
+        if (!requestIdRef.current) requestIdRef.current = crypto.randomUUID();
+        return requestIdRef.current;
+    };
 
     // Order details
     const [waiters, setWaiters] = useState([]);
@@ -138,6 +153,9 @@ export default function POSPage() {
             setCustomerPhone(draft.customerPhone || '');
             setCustomerAddress(draft.customerAddress || '');
             setIncludeTax(draft.includeTax ?? true);
+            // Recovering the basket without its id would let a checkout that
+            // already landed before the crash be rung up a second time.
+            requestIdRef.current = draft.requestId || null;
             // The tab itself is deliberately not restored: it may have been
             // settled on another terminal while this one was away, and
             // reattaching to a closed bill is worse than starting detached.
@@ -171,12 +189,29 @@ export default function POSPage() {
         return () => clearTimeout(timer);
     }, [notice]);
 
+    const draftMirrored = useRef(false);
+
     /*
      * Mirror the unsent basket to the device on every change. Cheap enough to do
      * eagerly — the alternative is debouncing and losing the last few seconds,
      * which is exactly the window a crash happens in.
      */
     useEffect(() => {
+        /*
+         * Skipped on mount. The restore above lands in a later commit, so this
+         * render still holds an empty cart — mirroring it would wipe the very
+         * draft being recovered.
+         */
+        if (!draftMirrored.current) {
+            draftMirrored.current = true;
+            return;
+        }
+
+        // An emptied cart is a basket that never happened, and its id must not
+        // carry into the next one: the server would dedupe a genuinely new
+        // order against the abandoned one and hand back the wrong receipt.
+        if (cart.length === 0) requestIdRef.current = null;
+
         saveCartDraft({
             cart,
             orderType,
@@ -186,6 +221,7 @@ export default function POSPage() {
             customerPhone,
             customerAddress,
             includeTax,
+            requestId: requestIdRef.current,
         });
     }, [cart, orderType, tableNumber, waiterId, customerName, customerPhone, customerAddress, includeTax]);
 
@@ -231,6 +267,8 @@ export default function POSPage() {
 
     // Add Item to Cart (from Modal or Direct)
     const addToCart = (item) => {
+        // The basket starts here, so its checkout id does too.
+        ensureRequestId();
         setCart(prev => {
             const existingIndex = prev.findIndex(i => i.uniqueId === item.uniqueId);
 
@@ -370,7 +408,7 @@ export default function POSPage() {
         setCustomerAddress('');
         setCustomerFound(false);
         setPendingInvoiceNo(null);
-        setPendingRequestId(null);
+        requestIdRef.current = null;
         // The order is on the server now, so the local copy is no longer a
         // recovery aid — leaving it would resurrect a completed sale.
         clearCartDraft();
@@ -398,6 +436,20 @@ export default function POSPage() {
     };
 
     const attachTab = (target, mode = null) => {
+        /*
+         * Settling over a cart with unsent lines in it would print a bill that
+         * doesn't include them and close the tab underneath them: the kitchen
+         * never cooks that food and nobody is charged for it. The round has to
+         * be sent (or cleared) first, so the drawer's Settle refuses here
+         * rather than opening a receipt that is already wrong. Attaching
+         * without settling is left alone — carrying a round onto a tab is
+         * exactly what it's for.
+         */
+        if (mode === 'settle' && cart.length > 0) {
+            setNotice(`Send or clear the ${cart.length} unsent item${cart.length === 1 ? '' : 's'} in the cart before settling this tab.`);
+            return;
+        }
+
         setActiveTabId(target.id);
         setOrderType(target.order_type || 'dine-in');
         setTableNumber(target.table_number || '');
@@ -406,6 +458,18 @@ export default function POSPage() {
         setCustomerName(target.customer_name || '');
         setCustomerPhone(target.customer_phone || '');
         setCustomerAddress(target.customer_address || '');
+        /*
+         * A discount already agreed on this tab is part of its bill. Settling
+         * recomputes the total from what's on screen, so leaving the fields
+         * blank quietly charged the money back — and cleared discount_reason
+         * with it. Always assigned, never only when there's a discount to
+         * restore: a figure typed for the previous bill must not follow the
+         * cashier onto this one.
+         */
+        const tabDiscount = Number(target.discount) || 0;
+        setDiscountMode('amount'); // stored as rupees, whatever was typed to get there
+        setDiscountValue(tabDiscount > 0 ? String(tabDiscount) : '');
+        setDiscountReason(tabDiscount > 0 ? target.discount_reason || '' : '');
         // A tab opened before invoice numbers were stored needs one minted at
         // settle time; one that already has a number keeps it.
         if (mode === 'settle' && !target.invoice_number) {
@@ -437,7 +501,9 @@ export default function POSPage() {
         // Fixed now rather than at print time so the number stored on the order
         // is the number on the paper, and a reprint is the same document.
         setPendingInvoiceNo(newInvoiceNumber());
-        setPendingRequestId(crypto.randomUUID());
+        // Normally already minted with the first line; a draft saved by an
+        // older build has none, so mint lazily rather than checking out unsafe.
+        ensureRequestId();
         setReceiptMode('pay-now');
     };
 
@@ -450,7 +516,7 @@ export default function POSPage() {
                 ...billColumns(billTotals),
                 discount_reason: discountAmount > 0 ? discountReason.trim() || null : null,
                 invoice_number: pendingInvoiceNo,
-                client_request_id: pendingRequestId,
+                client_request_id: ensureRequestId(),
                 include_tax: includeTax,
                 order_type: orderType,
                 ...orderDetails(),
@@ -478,8 +544,7 @@ export default function POSPage() {
         setIsSending(true);
         // Same protection as checkout — opening a tab twice would have the
         // kitchen cook the first round twice.
-        const requestId = pendingRequestId || crypto.randomUUID();
-        setPendingRequestId(requestId);
+        const requestId = ensureRequestId();
         try {
             const created = await addOrder({
                 items: cart.map(item => ({ ...item, round: 1 })),
@@ -494,7 +559,7 @@ export default function POSPage() {
             await loadTabs();
             setActiveTabId(created.id);
             setCart([]);
-            setPendingRequestId(null);
+            requestIdRef.current = null;
             setNotice(`Tab #${getOrderNumber(created)} opened — add rounds any time, pay at the end.`);
         } catch (error) {
             console.error('Failed to open tab', error);
@@ -526,6 +591,14 @@ export default function POSPage() {
 
     const handleSettle = async () => {
         if (!tab) return;
+        // Same rule as attachTab, held at the point money moves: a receipt can
+        // be on screen while lines are still being added behind it. Closing it
+        // rather than failing silently, so a tap that does nothing says why.
+        if (cart.length > 0) {
+            setReceiptMode(null);
+            setNotice('Send or clear the unsent items in the cart before settling this tab.');
+            return;
+        }
         setIsSending(true);
         try {
             await settleOrder(tab.id, {
