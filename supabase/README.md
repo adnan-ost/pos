@@ -34,6 +34,7 @@ Run in order. Numbers reflect the order they were originally applied.
 | `18_orders_write_lockdown.sql` | ⚠️ **Hold until the RPC client deploy is live and verified** — removes direct order writes |
 | `19_sanity_menu_identity.sql` | `menu_items.sanity_id` + `menu_sync_runs` — binds till dishes to the website's menu |
 | `20_sanity_menu_sync.sql` | `sync_menu_from_sanity()` — admin-only, dry-run by default, never touches availability |
+| `21_sanity_sync_null_sizes.sql` | Fixes the JSON-null `sizes` crash in the sync — **needs 20 first** |
 
 Two ordering constraints worth respecting if you ever rebuild:
 

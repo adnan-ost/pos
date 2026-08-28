@@ -30,8 +30,15 @@ const HOST = `https://${PROJECT_ID}.apicdn.sanity.io`;
 // Exactly the fields sync_menu_from_sanity reads. Asking for the whole
 // document would drag portable-text bodies and image metadata across for
 // nothing.
+/*
+ * `coalesce(..., [])` matters: without it Sanity sends `"sizes": null` for a
+ * dish sold in one size, and a JSON null is not an empty array. The SQL side
+ * handles either now, but sending the right shape is cheaper than defending
+ * against the wrong one.
+ */
 const QUERY = `*[_type == "dish" && defined(name) && defined(price)]{
-  _id, name, description, price, "sizes": sizes[]{label, price}
+  _id, name, description, price,
+  "sizes": coalesce(sizes[]{label, price}, [])
 }`;
 
 const isSanityConfigured = () => PROJECT_ID.trim().length > 0;
