@@ -18,38 +18,8 @@ export const getCategories = async () => {
     return data;
 };
 
-export const addCategory = async (category) => {
-    const { data, error } = await supabase
-        .from('categories')
-        .insert([category])
-        .select()
-        .single();
 
-    if (error) throw error;
-    return data;
-};
 
-export const updateCategory = async (id, updates) => {
-    const { data, error } = await supabase
-        .from('categories')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) throw error;
-    return data;
-};
-
-export const deleteCategory = async (id) => {
-    const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', id);
-
-    if (error) throw error;
-    return true;
-};
 
 // ==================== MENU ITEMS ====================
 
@@ -66,38 +36,8 @@ export const getMenuItems = async () => {
 };
 
 
-export const addMenuItem = async (item) => {
-    const { data, error } = await supabase
-        .from('menu_items')
-        .insert([item])
-        .select()
-        .single();
 
-    if (error) throw error;
-    return data;
-};
 
-export const updateMenuItem = async (id, updates) => {
-    const { data, error } = await supabase
-        .from('menu_items')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) throw error;
-    return data;
-};
-
-export const deleteMenuItem = async (id) => {
-    const { error } = await supabase
-        .from('menu_items')
-        .delete()
-        .eq('id', id);
-
-    if (error) throw error;
-    return true;
-};
 
 /*
  * "86-ing" an item — marking it sold out for the rest of service.
@@ -106,13 +46,20 @@ export const deleteMenuItem = async (id) => {
  * holding the whole item form open, and without a stale form overwriting a
  * price someone edited in the office a minute ago.
  */
+/*
+ * The 86 switch — mark a dish sold out, or back on.
+ *
+ * An RPC rather than a direct write for two reasons: menu_items writes are
+ * admin-only (migration 08), and 86'ing belongs to whoever is on the floor
+ * when the mutton runs out, not to whoever holds the admin PIN. It is also
+ * the one menu field a human still changes by hand now the rest comes from
+ * the website, so every flip is audited.
+ */
 export const setMenuItemAvailability = async (id, isAvailable) => {
-    const { data, error } = await supabase
-        .from('menu_items')
-        .update({ is_available: isAvailable, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
+    const { data, error } = await supabase.rpc('set_item_availability', {
+        p_item_id: id,
+        p_available: isAvailable,
+    });
 
     if (error) throw error;
     return data;
@@ -604,42 +551,4 @@ export const getFullMenuData = async () => {
 };
 
 // ==================== IMAGE UPLOAD ====================
-const MENU_IMAGE_BUCKET = 'menu-images';
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-/*
- * Uploads a menu photo and returns its public URL, so the caller can store it
- * in menu_items.image exactly as if it had been pasted in by hand.
- *
- * Checks size and type here rather than trusting the file picker's accept
- * filter, which is a hint the OS is free to ignore. Names are random: staff
- * upload things like "IMG_0042.jpg" and "photo.jpg", and the original name
- * would collide or leak nothing useful.
- */
-export const uploadMenuImage = async (file) => {
-    if (!file.type.startsWith('image/')) {
-        throw new Error('That file is not an image');
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-        throw new Error(`Image must be under ${MAX_IMAGE_BYTES / 1024 / 1024}MB`);
-    }
-
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const path = `${crypto.randomUUID()}.${ext || 'jpg'}`;
-
-    const { error } = await supabase.storage
-        .from(MENU_IMAGE_BUCKET)
-        .upload(path, file, { cacheControl: '31536000', upsert: false });
-
-    if (error) {
-        // A missing bucket is the one failure worth naming outright — it's a
-        // setup step, not something retrying will fix.
-        if (/bucket not found/i.test(error.message)) {
-            throw new Error(`Storage bucket "${MENU_IMAGE_BUCKET}" is missing. Create it in Supabase first.`);
-        }
-        throw error;
-    }
-
-    const { data } = supabase.storage.from(MENU_IMAGE_BUCKET).getPublicUrl(path);
-    return data.publicUrl;
-};

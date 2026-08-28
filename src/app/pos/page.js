@@ -4,7 +4,8 @@ import { flushSync } from 'react-dom';
 import styles from './pos.module.css';
 import {
     getMenuItems, getCategories, addOrder, getModifiers, getWaiters,
-    getOpenTabs, appendRoundToOrder, settleOrder, getTaxRate, findCustomerByPhone
+    getOpenTabs, appendRoundToOrder, settleOrder, getTaxRate, findCustomerByPhone,
+    setMenuItemAvailability
 } from '@/lib/supabaseDb';
 import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import { calcTotals, itemRound, DEFAULT_TAX_RATE } from '@/lib/orderTotals';
@@ -22,7 +23,7 @@ import { useRole } from '@/components/Layout/AppLayout';
 import {
     Soup, Flame, Utensils, Cookie, GlassWater, Plus, CirclePlus,
     Search, Banknote, CreditCard, X, Minus, UserRound, Armchair, Phone, MapPin,
-    UtensilsCrossed, ShoppingBag, Bike, Loader2, Layers, Receipt, Send
+    UtensilsCrossed, ShoppingBag, Bike, Loader2, Layers, Receipt, Send, EyeOff, Eye
 } from 'lucide-react';
 
 const ORDER_TYPES = [
@@ -260,6 +261,40 @@ export default function POSPage() {
 
         return items;
     }, [menuData.items, activeCategory, searchQuery]);
+
+    /*
+     * Mark a dish sold out, or back on.
+     *
+     * Optimistic, because the kitchen shouts and the floor answers — a
+     * round trip before the tile greys out is a round trip too many. Reverted
+     * and reported if the write fails, so nobody is left believing a dish is
+     * off when the till will still sell it.
+     *
+     * Deliberately not admin-gated: whoever notices the shortage is whoever
+     * is standing at the till, and P2's permissions will give this its own
+     * verb rather than borrowing the admin PIN.
+     */
+    const toggleSoldOut = async (item, event) => {
+        event.stopPropagation(); // the tile behind this adds to the cart
+        const next = item.is_available === false;
+
+        setMenuData(prev => ({
+            ...prev,
+            items: prev.items.map(i => (i.id === item.id ? { ...i, is_available: next } : i)),
+        }));
+
+        try {
+            await setMenuItemAvailability(item.id, next);
+            setNotice(next ? `${item.name} is back on.` : `${item.name} marked sold out.`);
+        } catch (error) {
+            console.error('Could not change availability', error);
+            setMenuData(prev => ({
+                ...prev,
+                items: prev.items.map(i => (i.id === item.id ? { ...i, is_available: !next } : i)),
+            }));
+            setNotice(`Could not change ${item.name} — it is unchanged.`);
+        }
+    };
 
     // Handle Item Click
     const handleItemClick = (item) => {
@@ -789,6 +824,15 @@ export default function POSPage() {
                                         />
                                     )}
                                     {soldOut && <span className={styles.soldOutTag}>Sold out</span>}
+                                    <button
+                                        type="button"
+                                        className={`${styles.soldOutBtn} ${soldOut ? styles.soldOutBtnOn : ''}`}
+                                        onClick={(e) => toggleSoldOut(item, e)}
+                                        title={soldOut ? `Put ${item.name} back on` : `Mark ${item.name} sold out`}
+                                        aria-label={soldOut ? `Put ${item.name} back on` : `Mark ${item.name} sold out`}
+                                    >
+                                        {soldOut ? <Eye size={15} /> : <EyeOff size={15} />}
+                                    </button>
                                 </div>
                                 <div className={styles.itemContent}>
                                     <div className={styles.itemHeader}>

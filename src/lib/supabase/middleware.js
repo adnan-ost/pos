@@ -43,8 +43,8 @@ export async function updateSession(request) {
     // /reset-pin is here because the emailed recovery link authenticates the
     // visitor at /auth/confirm before landing them on it — reaching it without
     // a session means the link is missing or expired, so bounce to /login.
-    const protectedPaths = ['/pos', '/orders', '/kds', '/menu', '/profile', '/reports', '/settings', '/reset-pin'];
-    const adminOnlyPaths = ['/menu', '/reports', '/settings'];
+    const protectedPaths = ['/pos', '/orders', '/kds', '/profile', '/reports', '/settings', '/reset-pin'];
+    const adminOnlyPaths = ['/reports', '/settings'];
 
     if (!user && !pathname.startsWith('/login')) {
         // Only redirect if accessing protected routes

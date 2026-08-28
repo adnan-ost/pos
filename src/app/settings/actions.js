@@ -102,6 +102,7 @@ export async function syncMenuFromSanity({ apply = false, applySized = false } =
         return { error: error.message }
     }
 
-    if (apply) revalidatePath('/menu')
+    // The POS grid is what reads the menu now that Menu Management is gone.
+    if (apply) revalidatePath('/pos')
     return { result: data }
 }

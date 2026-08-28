@@ -391,6 +391,46 @@
     letter-spacing: 0.05em;
 }
 
+/*
+ * The 86 switch, top-left of each tile — opposite corner to .addBtn so a
+ * mis-tap adds food rather than removing it from the menu. Always visible
+ * rather than hover-revealed: this is a touchscreen, there is no hover, and
+ * a control staff cannot see is a control they will not use mid-service.
+ */
+.soldOutBtn {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.6rem;
+    /* 44px touch target with a 15px icon inside it, same floor as the cart
+       controls — this decides whether the kitchen gets an order it cannot
+       cook. */
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 3;
+    transition: background 0.15s ease;
+}
+
+.soldOutBtn:hover,
+.soldOutBtn:focus-visible {
+    background: rgba(0, 0, 0, 0.78);
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+/* On a dish already off the menu the button reads as the way back on. */
+.soldOutBtnOn {
+    background: var(--primary);
+    color: var(--primary-foreground);
+}
+
 .addBtn {
     position: absolute;
     bottom: 0.75rem;

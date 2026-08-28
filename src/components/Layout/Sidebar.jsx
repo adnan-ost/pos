@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
-    Utensils, ClipboardList, ChefHat, BarChart3, ExternalLink, User, LogOut,
+    Utensils, ClipboardList, BarChart3, ExternalLink, User, LogOut,
     MonitorPlay, PanelLeftClose, PanelLeftOpen, Settings
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
@@ -13,7 +13,6 @@ const NAV_LINKS = [
     { href: '/pos', label: 'POS', Icon: Utensils },
     { href: '/orders', label: 'Orders', Icon: ClipboardList },
     { href: '/kds', label: 'Kitchen Display', Icon: MonitorPlay, newTab: true },
-    { href: '/menu', label: 'Menu Management', Icon: ChefHat, adminOnly: true },
     { href: '/customer', label: 'Customer View', Icon: ExternalLink, newTab: true },
     { href: '/reports', label: 'Reports', Icon: BarChart3, adminOnly: true },
     { href: '/settings', label: 'Settings', Icon: Settings, adminOnly: true }
