@@ -1,10 +1,24 @@
 import { useState } from 'react';
 import styles from './ModifierModal.module.css';
 
-// Default to the largest/last variant — the biggest portion is what gets
-// ordered most, so it saves a tap at the busiest moment.
+/*
+ * Default to the SMALLEST variant, which the sync orders first.
+ *
+ * This used to pick the largest, on the reasoning that the biggest portion is
+ * ordered most and it saves a tap. That held while karahis were the only sized
+ * dish and "Full" was the usual order. It stopped holding when the website's
+ * sizes came across: 14 dishes are now sold by piece count, and defaulting
+ * Chicken Boti to 16 pieces rings up Rs 5,140 for a customer who asked for 8
+ * at Rs 2,725.
+ *
+ * The two errors are not symmetrical. A cashier upgrading to Full is a
+ * deliberate act prompted by the customer; failing to notice a pre-selected
+ * larger portion charges them for food they did not order and nobody catches
+ * it. So the default is the cheaper option and staff tap up — one extra tap
+ * on a karahi, no silent overcharge anywhere.
+ */
 const defaultVariant = (item) =>
-    item?.variants?.length ? item.variants[item.variants.length - 1] : null;
+    item?.variants?.length ? item.variants[0] : null;
 
 const defaultSelections = (item, modifiersData) => {
     const initial = {};
