@@ -22,7 +22,7 @@ const STYLE_ID = 'receipt-page-size';
 // CSS reference pixels are 96 per inch by definition, regardless of the display.
 const PX_PER_MM = 96 / 25.4;
 
-export const RECEIPT_WIDTH_MM = 80;
+const RECEIPT_WIDTH_MM = 80;
 
 // A little slack past the content so the tear or auto-cut doesn't clip the last
 // line, and a floor so an unmeasurable receipt still prints something sane.

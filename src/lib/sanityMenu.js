@@ -34,7 +34,7 @@ const QUERY = `*[_type == "dish" && defined(name) && defined(price)]{
   _id, name, description, price, "sizes": sizes[]{label, price}
 }`;
 
-export const isSanityConfigured = () => PROJECT_ID.trim().length > 0;
+const isSanityConfigured = () => PROJECT_ID.trim().length > 0;
 
 /*
  * Fetches every dish. Returns the array the RPC expects.

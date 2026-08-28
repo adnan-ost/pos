@@ -5,6 +5,9 @@ Re-run with `/cleanup-audit`; the mechanical half is `node scripts/audit_deadcod
 
 **Last run:** 28 Aug 2026 · 56 code files · 15 stylesheets · ~8,700 lines of JS
 
+**Status:** §1 is done (commit below). The mechanical scan now reports 2 unused
+exports instead of 9, and both are the ones deliberately held until §2.1.
+
 ---
 
 ## How to read this
@@ -19,9 +22,9 @@ could go wrong. Where a risk exists, it is written before the plan.
 
 ---
 
-## 1. Safe now
+## 1. Safe now — ✅ DONE 28 Aug 2026
 
-### 1.1 `getMenuItemsByCategory` is genuinely unreferenced
+### 1.1 ✅ `getMenuItemsByCategory` is genuinely unreferenced — removed
 `src/lib/supabaseDb.js:68` · 14 lines
 
 **Why unnecessary.** Nothing imports it. The four screens that need menu data
@@ -37,7 +40,7 @@ deleting — a future dynamic call would not appear in the import graph.
 
 **Plan.** Delete the function.
 
-### 1.2 Eight internals are exported that nothing outside imports
+### 1.2 ✅ Over-exported internals — six narrowed
 `connection.js` (`setOnline`) · `printReceipt.js` (`RECEIPT_WIDTH_MM`) ·
 `sanityMenu.js` (`isSanityConfigured`) · `supabaseDb.js` (`recordCustomer`,
 `updateOrderStatus`, `getOrderById`, `MENU_IMAGE_BUCKET`, `MAX_IMAGE_BYTES`)
@@ -56,7 +59,7 @@ fallback paths (§2.1). Narrowing them is safe; *deleting* them is not, until
 **Plan.** Drop the `export` keyword on the six that have no external consumer
 and no pending one. Leave `updateOrderStatus`/`getOrderById` alone until §2.1.
 
-### 1.3 `dotenv` is a runtime dependency used only by a dev script
+### 1.3 ✅ `dotenv` moved to devDependencies
 `package.json` · used solely by `supabase/scripts/check_db.js`
 
 **Why unnecessary.** Next.js loads `.env.local` natively; the app never imports
@@ -75,7 +78,7 @@ are installed locally, just not in a production install).
 > runtime, not at build. The audit script now understands peers so it will not
 > suggest this again.
 
-### 1.4 Empty file
+### 1.4 ✅ Empty file — removed
 `scripts/menu/replaced_images.json` is 0 bytes. Delete.
 
 ---
@@ -218,8 +221,19 @@ anyway.
 **5.1 Orders declares components inside its render** (`PaymentChips`,
 `OrderMeta`, `ItemThumb`, `NextStatusBtn`, `RowActions`, lines 306–384). Each
 render gives them fresh identities, so React unmounts and remounts every row's
-subtree — including every thumbnail — instead of reconciling it. **Plan:** move
-them to module scope. Low risk, immediate win.
+subtree — including every thumbnail — instead of reconciling it.
+
+**Correction (28 Aug):** an earlier draft of this report called it a low-risk
+move. It is not. Only `PaymentChips` and `OrderMeta` are pure moves; the other
+three close over component state (`itemImages`, `handleStatusUpdate`, `canVoid`,
+`setReceiptOrder`, `setVoidTarget`) and need those threaded through as props.
+Moving two of five also buys nothing, because the remaining three still change
+identity on every render and remount the subtree anyway.
+
+**Risk.** It is a ~100-line refactor of the screen staff use to void and
+reprint. **Plan:** do all five together, with prop threading, once P1's write
+path has been exercised in a real service — not stacked on top of an
+unverified change.
 
 **5.2 `supabaseDb.js` should split** along the seams it already has:
 `menu.js`, `orders.js`, `customers.js`, `storage.js`. **Risk:** a wide import
@@ -304,14 +318,14 @@ Stated so a future run knows these were considered, not missed:
 
 ## 8. Suggested order of work
 
-1. §1.1, §1.2, §1.3, §1.4 — safe now, one small commit.
-2. §5.1 — components out of the Orders render body.
-3. §3.1 — the money formatter (a correctness fix wearing a tidiness hat).
-4. §4.1 — narrow the KDS/Orders menu fetch.
-5. §6.1, §6.2 — retire the v3/v4 pipeline **with** its README.
-6. **After migration 18 and one live service:** §2.1, §2.2 — the big one.
-7. §5.2, then §5.3 — structural, one at a time, nothing else in flight.
-8. §4.2 — with P3 reports-on-SQL.
+1. ~~§1.1–§1.4~~ — **done**.
+2. §3.1 — the money formatter (a correctness fix wearing a tidiness hat).
+3. §4.1 — narrow the KDS/Orders menu fetch.
+4. §6.1, §6.2 — retire the v3/v4 pipeline **with** its README.
+5. **After migration 18 and one live service:** §2.1, §2.2 — the big one,
+   and the trigger for §5.1 too.
+6. §5.2, then §5.3 — structural, one at a time, nothing else in flight.
+7. §4.2 — with P3 reports-on-SQL.
 
 Roughly **900 lines removable** today or on a named trigger, without changing
 a single behaviour the restaurant depends on.

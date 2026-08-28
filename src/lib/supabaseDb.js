@@ -65,20 +65,6 @@ export const getMenuItems = async () => {
     return data;
 };
 
-export const getMenuItemsByCategory = async (categoryId) => {
-    if (categoryId === 'all') return getMenuItems();
-
-    const { data, error } = await supabase
-        .from('menu_items')
-        .select('*')
-        .eq('category_id', categoryId);
-
-    if (error) {
-        console.error('Error fetching menu items by category:', error);
-        return [];
-    }
-    return data;
-};
 
 export const addMenuItem = async (item) => {
     const { data, error } = await supabase
@@ -532,7 +518,7 @@ const addOrderDirect = async (order) => {
  * Address and name are only overwritten when supplied, so a delivery that
  * came in without an address doesn't erase the one already on file.
  */
-export const recordCustomer = async ({ name, phone, address, spent = 0 }) => {
+const recordCustomer = async ({ name, phone, address, spent = 0 }) => {
     if (!phone) return null;
 
     const { data: existing } = await supabase
@@ -846,8 +832,8 @@ export const getFullMenuData = async () => {
 };
 
 // ==================== IMAGE UPLOAD ====================
-export const MENU_IMAGE_BUCKET = 'menu-images';
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MENU_IMAGE_BUCKET = 'menu-images';
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 /*
  * Uploads a menu photo and returns its public URL, so the caller can store it

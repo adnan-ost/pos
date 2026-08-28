@@ -39,7 +39,7 @@ export const getConnectionSnapshot = () => state;
 const SERVER_SNAPSHOT = { online: true, channels: {} };
 export const getConnectionServerSnapshot = () => SERVER_SNAPSHOT;
 
-export const setOnline = (online) => {
+const setOnline = (online) => {
     if (state.online === online) return;
     state.online = online;
     emit();
