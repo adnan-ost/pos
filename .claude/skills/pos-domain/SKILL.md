@@ -98,6 +98,32 @@ Charges (name, amount, order types, status), discount presets, vouchers
 credit accounts (khata) — all admin-CRUD tables the till *selects from*.
 Free-typing money at the till is the exception (manual discount) and permission-gated.
 
+## Menu comes from the website (Sanity)
+
+The menu is authored in Sanity for flamesbytheindus.com and pulled into the
+till; Supabase stays the source of truth for anything the POS charges, and the
+till never reads Sanity on the ordering path. `sync_menu_from_sanity()`
+(migration 20) does the diffing; `src/lib/sanityMenu.js` does the reading.
+The dataset is public — the POS needs only `NEXT_PUBLIC_SANITY_PROJECT_ID`
+and `NEXT_PUBLIC_SANITY_DATASET`, and **no write token ever belongs on a till**.
+
+- **Sanity owns** price, sizes→variants, description.
+  **The POS owns** `is_available`, modifiers, `category_id`, image, name.
+  Availability is the one that matters: the kitchen's 86 switch must survive
+  every sync, because a CMS cannot know what is in the walk-in.
+- **Sanity's `price` is the SMALLEST size; `menu_items.price` is the LARGEST**
+  (the grid tile shows it, and ModifierModal defaults to the last variant).
+  Copy one into the other and every karahi silently drops to half price. Sized
+  dishes are held back unless prices for the whole set are confirmed.
+- `sync_menu_from_sanity` is SECURITY DEFINER, so it **restates `is_admin()`
+  itself** — RLS does not guard a definer function.
+- Dry run must stay genuinely read-only: the name binding is computed into a
+  temp table and persisted only on apply.
+- `menu_items.sanity_id` is **not unique** — one Sanity dish can map to several
+  POS rows (a dish sitting in two menu sections), and they price together.
+- Never delete-and-recreate a menu row to "resync" it: `order_items.
+  menu_item_id` points at it, and the history goes with it.
+
 ## Working on this codebase
 
 - Stack: Next.js App Router (JS, CSS modules) + Supabase; migrations applied by
