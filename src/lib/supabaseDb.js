@@ -277,35 +277,16 @@ export const cancelOrder = async (orderId, { reason, by } = {}) => {
         throw new Error('A reason is required to void an order.');
     }
 
-    // RPC path. The paid-order guard above stays client-side on purpose:
-    // void_order CAN reverse a paid bill in the ledger, but offering that at
-    // the till is a refund flow that arrives with P2's permissions.
-    try {
-        const { data, error } = await supabase.rpc('void_order', {
-            p_order_id: orderId,
-            p_reason: reason.trim(),
-            p_by: by || null,
-        });
-        if (error) throw error;
-        return data;
-    } catch (error) {
-        if (!rpcMissing(error)) throw error;
-        console.warn('void_order RPC missing — run migrations 15–17; using legacy update');
-    }
-
-    const now = new Date().toISOString();
-    const { data, error } = await supabase
-        .from('orders')
-        .update({
-            status: 'cancelled',
-            cancelled_at: now,
-            cancel_reason: reason.trim(),
-            cancelled_by: by || null,
-            updated_at: now,
-        })
-        .eq('id', orderId)
-        .select()
-        .single();
+    /*
+     * The paid-order guard above stays client-side on purpose: void_order CAN
+     * reverse a paid bill in the ledger, but offering that at the till is a
+     * refund flow, which arrives with P2's permissions.
+     */
+    const { data, error } = await supabase.rpc('void_order', {
+        p_order_id: orderId,
+        p_reason: reason.trim(),
+        p_by: by || null,
+    });
 
     if (error) throw error;
     return data;
@@ -355,35 +336,6 @@ export const getTaxRate = async () => {
     return taxRateCache;
 };
 
-/*
- * calcTotals also returns `taxable`, which callers display but the orders table
- * has no column for, so every write goes through here.
- *
- * `discount` is omitted when zero so the till keeps working against a database
- * where migration 11 has not been applied yet — an unknown column would
- * otherwise fail the whole write.
- */
-const totalsColumns = (totals) => ({
-    subtotal: totals.subtotal,
-    tax: totals.tax,
-    total: totals.total,
-    ...(totals.discount > 0 && { discount: totals.discount }),
-});
-
-/*
- * P1: every write that moves food or money goes through the atomic RPCs
- * (migration 17) — row locks, idempotency, server-recomputed totals. Each
- * wrapper falls back to its legacy direct-table path when the RPC isn't
- * installed, so this client deploys safely against a database where
- * migrations 15–17 haven't landed yet. Migration 18 retires the fallbacks
- * by revoking direct writes — apply it only after this client is live.
- */
-const rpcMissing = (error) =>
-    Boolean(error) && (
-        error.code === 'PGRST202' ||
-        /could not find the function|does not exist/i.test(error.message || '')
-    );
-
 const createOrderViaRpc = async (order) => {
     const { data, error } = await supabase.rpc('create_order', {
         p_items: order.items,
@@ -412,14 +364,7 @@ const createOrderViaRpc = async (order) => {
 };
 
 export const addOrder = async (order) => {
-    let data;
-    try {
-        data = await createOrderViaRpc(order);
-    } catch (error) {
-        if (!rpcMissing(error)) throw error;
-        console.warn('create_order RPC missing — run migrations 15–17; using legacy insert');
-        data = await addOrderDirect(order);
-    }
+    const data = await createOrderViaRpc(order);
 
     // Best-effort, and deliberately after the order is safely stored: the
     // customer record is useful, but nothing about it is worth losing a sale
@@ -433,80 +378,6 @@ export const addOrder = async (order) => {
         }).catch(err => console.error('Could not record customer', err));
     }
 
-    return data;
-};
-
-// The pre-P1 insert path, kept only as the fallback above.
-const addOrderDirect = async (order) => {
-    const now = new Date().toISOString();
-    const orderData = {
-        ...order,
-        order_number: order.order_number || Date.now().toString().slice(-6),
-        status: order.status || 'new',
-        // Paid at the counter unless the caller opens this as a tab
-        payment_status: order.payment_status || 'paid',
-        round_count: 1,
-        last_round_at: now,
-        created_at: now
-    };
-
-    if (orderData.payment_status === 'paid' && !orderData.paid_at) {
-        orderData.paid_at = now;
-    }
-
-    /*
-     * Idempotent when the caller supplies client_request_id.
-     *
-     * DO NOTHING rather than DO UPDATE: if the first attempt actually succeeded
-     * and the kitchen has since started the ticket, an update would reset its
-     * status to 'new' and re-fire food that's already on the pass. On a
-     * collision we return the order that's already there, so a retry after a
-     * timeout is indistinguishable from a first attempt that worked.
-     */
-    let data, error;
-
-    if (orderData.client_request_id) {
-        ({ data, error } = await supabase
-            .from('orders')
-            .upsert([orderData], { onConflict: 'client_request_id', ignoreDuplicates: true })
-            .select()
-            .maybeSingle());
-
-        // Nothing came back, so this id was already used — fetch the winner.
-        if (!error && !data) {
-            const existing = await supabase
-                .from('orders')
-                .select('*')
-                .eq('client_request_id', orderData.client_request_id)
-                .maybeSingle();
-
-            if (existing.error) throw existing.error;
-            if (existing.data) return existing.data;
-        }
-
-        /*
-         * Migration 12 not applied yet: rather than refuse the sale, drop the id
-         * and insert normally. That gives up idempotency for this order — which
-         * is where it already was — instead of stopping the till.
-         */
-        if (error && /client_request_id/i.test(error.message || '')) {
-            console.warn('client_request_id column missing — run migration 12 for retry-safe checkout');
-            const { client_request_id: _unused, ...withoutId } = orderData;
-            ({ data, error } = await supabase
-                .from('orders')
-                .insert([withoutId])
-                .select()
-                .single());
-        }
-    } else {
-        ({ data, error } = await supabase
-            .from('orders')
-            .insert([orderData])
-            .select()
-            .single());
-    }
-
-    if (error) throw error;
     return data;
 };
 
@@ -589,29 +460,11 @@ export const findCustomerByPhone = async (phone) => {
  * ticket with uncooked food in 'ready'.
  */
 export const bumpOrder = async (orderId, fromStatus, toStatus) => {
-    try {
-        const { data, error } = await supabase.rpc('bump_order', {
-            p_order_id: orderId,
-            p_from: fromStatus,
-            p_to: toStatus,
-        });
-        if (error) throw error;
-        return data;
-    } catch (error) {
-        if (!rpcMissing(error)) throw error;
-        console.warn('bump_order RPC missing — run migrations 15–17; using legacy update');
-        return updateOrderStatus(orderId, toStatus);
-    }
-};
-
-// Legacy unguarded write, kept only as bumpOrder's fallback.
-export const updateOrderStatus = async (id, status) => {
-    const { data, error } = await supabase
-        .from('orders')
-        .update({ status })
-        .eq('id', id)
-        .select()
-        .single();
+    const { data, error } = await supabase.rpc('bump_order', {
+        p_order_id: orderId,
+        p_from: fromStatus,
+        p_to: toStatus,
+    });
 
     if (error) throw error;
     return data;
@@ -636,7 +489,7 @@ export const getOpenTabs = async () => {
     return data;
 };
 
-export const getOrderById = async (id) => {
+const getOrderById = async (id) => {
     const { data, error } = await supabase
         .from('orders')
         .select('*')
@@ -660,67 +513,23 @@ export const getOrderById = async (id) => {
  * to one tab in the same instant would have the later write win.
  */
 export const appendRoundToOrder = async (orderId, newItems, details = {}, { clientRequestId } = {}) => {
-    // RPC path: the lock and the idempotency key make a retried or twin
-    // "send round" land exactly one round — the audit's last CRITICAL.
-    try {
-        const { data, error } = await supabase.rpc('append_round', {
-            p_order_id: orderId,
-            p_items: newItems,
-            p_client_request_id: clientRequestId || null,
-            p_expected_total: null, // settle carries the money check
-            p_opts: {
-                ...(details.include_tax !== undefined && { include_tax: details.include_tax }),
-                ...(details.table_number !== undefined && { table_number: details.table_number }),
-                ...(details.waiter_id !== undefined && { waiter_id: details.waiter_id }),
-                ...(details.waiter_name !== undefined && { waiter_name: details.waiter_name }),
-            },
-        });
-        if (error) throw error;
-        return data;
-    } catch (error) {
-        if (!rpcMissing(error)) throw error;
-        console.warn('append_round RPC missing — run migrations 15–17; using legacy update');
-    }
-
-    const order = await getOrderById(orderId);
-
-    if (order.payment_status === 'paid') {
-        throw new Error('This bill has already been settled.');
-    }
-
-    const round = (order.round_count || 1) + 1;
-    const items = [
-        ...order.items,
-        ...newItems.map(item => ({ ...item, round }))
-    ];
-
-    const includeTax = details.include_tax ?? order.include_tax ?? true;
-    // A discount already agreed on this tab survives the new round. Re-pricing
-    // without it would quietly withdraw something the customer was promised.
-    const totals = calcTotals(items, includeTax, {
-        taxRate: await getTaxRate(),
-        discount: order.discount || 0,
-    });
-    const now = new Date().toISOString();
-
-    const { data, error } = await supabase
-        .from('orders')
-        .update({
-            items,
-            ...totalsColumns(totals),
-            include_tax: includeTax,
-            round_count: round,
-            last_round_at: now,
-            status: 'new', // back to the top of the kitchen board for this round
-            updated_at: now,
-            // The floor can correct these mid-sitting (table moved, shift change)
+    /*
+     * The lock and the idempotency key inside append_round are what make a
+     * retried or double-tapped round land exactly once — the defect that used
+     * to have the kitchen cook the same food twice.
+     */
+    const { data, error } = await supabase.rpc('append_round', {
+        p_order_id: orderId,
+        p_items: newItems,
+        p_client_request_id: clientRequestId || null,
+        p_expected_total: null, // settle carries the money check
+        p_opts: {
+            ...(details.include_tax !== undefined && { include_tax: details.include_tax }),
             ...(details.table_number !== undefined && { table_number: details.table_number }),
             ...(details.waiter_id !== undefined && { waiter_id: details.waiter_id }),
-            ...(details.waiter_name !== undefined && { waiter_name: details.waiter_name })
-        })
-        .eq('id', orderId)
-        .select()
-        .single();
+            ...(details.waiter_name !== undefined && { waiter_name: details.waiter_name }),
+        },
+    });
 
     if (error) throw error;
     return data;
@@ -733,65 +542,28 @@ export const appendRoundToOrder = async (orderId, newItems, details = {}, { clie
  * kitchen board; one still being cooked stays there for the pass.
  */
 export const settleOrder = async (orderId, {
-    paymentMode = 'cash', includeTax, discount, discountReason, invoiceNumber,
+    paymentMode = 'cash', includeTax, discount, discountReason,
     expectedTotal, clientRequestId,
 } = {}) => {
-    // RPC path: one row-locked transaction settles the bill, writes the
-    // payment, and mints the sequential invoice number. Two terminals racing
-    // on the same tab: one wins, the other is told the truth.
-    try {
-        const { data, error } = await supabase.rpc('settle_order', {
-            p_order_id: orderId,
-            p_method: paymentMode,
-            p_discount: discount ?? null,
-            p_discount_reason: discountReason ?? null,
-            p_include_tax: includeTax ?? null,
-            p_expected_total: expectedTotal ?? null,
-            p_client_request_id: clientRequestId || null,
-        });
-        if (error) throw error;
-        return data;
-    } catch (error) {
-        if (!rpcMissing(error)) throw error;
-        console.warn('settle_order RPC missing — run migrations 15–17; using legacy update');
-    }
-
-    const order = await getOrderById(orderId);
-
-    if (order.payment_status === 'paid') {
-        throw new Error('This bill has already been settled.');
-    }
-
-    const taxed = includeTax ?? order.include_tax ?? true;
-    const totals = calcTotals(order.items, taxed, {
-        taxRate: await getTaxRate(),
-        // A discount can be applied at settle time, or carried from the tab.
-        discount: discount ?? order.discount ?? 0,
+    /*
+     * One row-locked transaction settles the bill, writes the payment and
+     * mints the sequential invoice number. Of two terminals racing on the same
+     * tab, one wins and the other is told the truth.
+     */
+    const { data, error } = await supabase.rpc('settle_order', {
+        p_order_id: orderId,
+        p_method: paymentMode,
+        p_discount: discount ?? null,
+        p_discount_reason: discountReason ?? null,
+        p_include_tax: includeTax ?? null,
+        p_expected_total: expectedTotal ?? null,
+        p_client_request_id: clientRequestId || null,
     });
-    const now = new Date().toISOString();
-
-    const { data, error } = await supabase
-        .from('orders')
-        .update({
-            ...totalsColumns(totals),
-            include_tax: taxed,
-            ...(discountReason !== undefined && { discount_reason: discountReason }),
-            // Only stamped if the bill doesn't already carry one, so settling a
-            // tab twice can't renumber a receipt that was already printed.
-            ...(invoiceNumber && !order.invoice_number && { invoice_number: invoiceNumber }),
-            payment_status: 'paid',
-            payment_mode: paymentMode,
-            paid_at: now,
-            updated_at: now,
-            ...(order.status === 'ready' && { status: 'completed' })
-        })
-        .eq('id', orderId)
-        .select()
-        .single();
 
     if (error) throw error;
     return data;
 };
+
 // ==================== MODIFIERS ====================
 export const getModifiers = async () => {
     const { data, error } = await supabase
