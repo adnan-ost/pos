@@ -32,6 +32,8 @@ Run in order. Numbers reflect the order they were originally applied.
 | `16_backfill_transactional_core.sql` | Explodes JSONB items into the P1 tables and self-verifies (raises on drift) — **needs 15 first** |
 | `17_order_rpcs.sql` | Atomic order RPCs: create/append/settle/void/bump — locks, idempotency, server totals — **needs 16 first** |
 | `18_orders_write_lockdown.sql` | ⚠️ **Hold until the RPC client deploy is live and verified** — removes direct order writes |
+| `19_sanity_menu_identity.sql` | `menu_items.sanity_id` + `menu_sync_runs` — binds till dishes to the website's menu |
+| `20_sanity_menu_sync.sql` | `sync_menu_from_sanity()` — admin-only, dry-run by default, never touches availability |
 
 Two ordering constraints worth respecting if you ever rebuild:
 

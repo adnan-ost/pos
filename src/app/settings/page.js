@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import MenuSyncPanel from '@/components/Settings/MenuSyncPanel'
 import { getSettings, updateSettings } from './actions'
 import { Save, Loader2, CreditCard, Building, MapPin, CheckCircle2, AlertTriangle, QrCode } from 'lucide-react'
 
@@ -371,6 +372,8 @@ export default function SettingsPage() {
                     </div>
                 </form>
             </div>
+
+            <MenuSyncPanel />
         </div>
     )
 }

@@ -3,6 +3,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { fetchSanityDishes } from '@/lib/sanityMenu'
 
 export async function getSettings() {
     const supabase = await createClient()
@@ -64,4 +65,43 @@ export async function updateSettings(formData) {
 
     revalidatePath('/settings')
     return { success: 'Settings updated successfully' }
+}
+
+/*
+ * Pull the menu the website publishes into the till.
+ *
+ * Two-step by design: `apply: false` reports what would change and writes
+ * nothing, so the diff can be read before any price moves. Only an explicit
+ * second call with `apply: true` writes.
+ *
+ * The fetch happens here on the server and the diffing happens in Postgres —
+ * see sync_menu_from_sanity (migration 20) for what Sanity owns and what it
+ * is never allowed to touch (availability above all: the kitchen's 86 switch
+ * must survive any sync).
+ */
+export async function syncMenuFromSanity({ apply = false, applySized = false } = {}) {
+    const supabase = await createClient()
+
+    let dishes
+    try {
+        dishes = await fetchSanityDishes()
+    } catch (error) {
+        return { error: error.message }
+    }
+
+    const { data, error } = await supabase.rpc('sync_menu_from_sanity', {
+        p_dishes: dishes,
+        p_apply: apply,
+        p_apply_sized: applySized,
+    })
+
+    if (error) {
+        // The function's own messages are written to be read by a person —
+        // "Only an admin can sync the menu", "refusing a partial sync" — so
+        // they are passed through rather than replaced with something vaguer.
+        return { error: error.message }
+    }
+
+    if (apply) revalidatePath('/menu')
+    return { result: data }
 }
